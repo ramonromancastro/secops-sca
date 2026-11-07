@@ -41,7 +41,7 @@ def save_settings(data: dict):
         json.dump(data, f, indent=2)
 
 active_config = load_settings()
-app = FastAPI(title="Enterprise SCA Vulnerability Dashboard API",
+app = FastAPI(title="SecOps SCA Monitor API",
                 root_path=active_config["relative_url_root"])
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -50,7 +50,7 @@ security_scheme = HTTPBearer(auto_error=False)
 async def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
     settings = load_settings()
     api_token = settings.get("api_token", None)
-    
+
     # Si por alguna razón no hay token configurado en settings.json, da error
     if not api_token:
         raise HTTPException(
@@ -58,7 +58,7 @@ async def verify_token(request: Request, credentials: HTTPAuthorizationCredentia
             detail="Token de acceso no configurado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Comprobar si se envió la credencial Bearer y si coincide con el token esperado
     if not credentials or credentials.credentials != api_token:
         raise HTTPException(
@@ -66,19 +66,19 @@ async def verify_token(request: Request, credentials: HTTPAuthorizationCredentia
             detail="Token de acceso inválido o no proporcionado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-        
+
     return credentials.credentials
-    
+
 async def verify_any_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
     settings = load_settings()
-    
+
     # Obtener ambos tokens permitidos desde settings.json
     api_token = settings.get("api_token", None)
     upload_token = settings.get("upload_token", None)
-    
+
     # Recoger el token enviado por la petición
     provided_token = credentials.credentials if credentials else ""
-    
+
     # Si por alguna razón no hay token configurado en settings.json, da error
     if not api_token or not upload_token:
         raise HTTPException(
@@ -86,7 +86,7 @@ async def verify_any_token(request: Request, credentials: HTTPAuthorizationCrede
             detail="Token de acceso no configurado",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     # Comprobar si el token proporcionado coincide con ALGUNO de los dos válidos
     if provided_token == api_token or provided_token == upload_token:
         return provided_token

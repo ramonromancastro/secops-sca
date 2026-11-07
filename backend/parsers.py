@@ -87,7 +87,7 @@ def parse_manifest(content: bytes, file_type: str) -> List[Dict[str, str]]:
         try:
             # Parsear XML ignorando namespaces mediante un iterparse o limpieza de tags
             root = ET.fromstring(text)
-            
+
             # Recorrer todos los elementos buscando la etiqueta 'dependency' independientemente del namespace
             for elem in root.iter():
                 # ElementTree asigna namespaces como '{http://maven.apache.org/POM/4.0.0}dependency'
@@ -95,7 +95,7 @@ def parse_manifest(content: bytes, file_type: str) -> List[Dict[str, str]]:
                     group_id = None
                     artifact_id = None
                     version = None
-                    
+
                     for child in elem:
                         tag_name = child.tag.split("}")[-1] # Elimina cualquier prefijo de namespace
                         if tag_name == "groupId" and child.text:
@@ -104,7 +104,7 @@ def parse_manifest(content: bytes, file_type: str) -> List[Dict[str, str]]:
                             artifact_id = child.text.strip()
                         elif tag_name == "version" and child.text:
                             version = child.text.strip()
-                    
+
                     if group_id and artifact_id and version:
                         # En OSV.dev para Maven el formato del paquete es groupId:artifactId
                         pkg_name = f"{group_id}:{artifact_id}"
