@@ -7,7 +7,7 @@
 
 **SecOps SCA Monitor** is a lightweight, high-performance Software Composition Analysis (SCA) platform. Designed for enterprise security teams, it provides continuous monitoring of third-party dependencies without the overhead of maintaining a database.
 
-## ?? Key Features
+## 🚀 Key Features
 
 *   **100% Database-less Architecture**: State is entirely managed via the local file system (JSON manifestations and reports), atomic synchronization, and async batch processing.
 *   **Multi-Ecosystem Support**: Seamlessly parses `composer.lock` (PHP), `Gemfile.lock` (Ruby), `package-lock.json` (Node.js), `requirements.txt` (Python), and `pom.xml` (Java Maven).
@@ -16,7 +16,7 @@
 *   **Automated Scanning**: Built-in cron jobs automatically re-scan environments every 6 hours.
 *   **Dual Token Security**: Role-Based Access Control (RBAC) supporting Global Admin Tokens and specific Upload Tokens for CI/CD pipelines, managed through an elegant UI Auth Modal.
 
-## ??? Architecture
+## 🏗️ Architecture
 
 The platform is divided into three main layers:
 
@@ -24,7 +24,7 @@ The platform is divided into three main layers:
 2.  **Backend (FastAPI + Uvicorn)**: A high-concurrency async Python API. It manages file parsing, interacts with the OSV.dev API, calculates CVSS security scores, and handles authentication.
 3.  **Infrastructure (Apache + Systemd)**: Apache acts as a reverse proxy, handling static file delivery and forwarding API requests. Systemd daemonizes the FastAPI application, ensuring continuous uptime.
 
-## ?? Installation
+## ⚙️ Installation
 
 The project includes an automated deployment script tailored for Debian/Ubuntu and RHEL/AlmaLinux/Rocky systems.
 
@@ -52,7 +52,7 @@ The project includes an automated deployment script tailored for Debian/Ubuntu a
 
    Open your browser and navigate to ```http://<YOUR-SERVER-IP>:/sca```
 
-## ??? Authentication & Usage
+## 🛡️ Authentication & Usage
 
 Upon first accessing the dashboard, you will be prompted to enter your **API Bearer Token**.
 You can find the automatically generated tokens inside your server at: ```/opt/sca/config/settings.json```
@@ -61,13 +61,13 @@ You can find the automatically generated tokens inside your server at: ```/opt/s
 
 **Forcing Scans**: Click "Forzar Escaneo Global" to immediately re-check all known dependencies against the OSV database.
 
-## ?? AI Acknowledgment
+## 🤖 AI Acknowledgment
 
 This project was ideated, architected, and developed with the assistance of Artificial Intelligence. AI tools (specifically Google's Gemini) acted as an advanced pair-programming partner, helping to optimize the database-less architecture, design the reactive Vue 3 UI, implement strict SELinux security policies, and refactor the bash deployment pipeline.
 
 The human-AI collaboration significantly accelerated the development cycle while maintaining enterprise-grade security and coding standards.
 
-## ?? License
+## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 Copyright © 2026 rrc2software.
