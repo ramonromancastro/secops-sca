@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+<!-- Configuración básica y codificación estricta -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+  <!-- Título y Descripción Corporativa -->
+  <title>SecOps SCA Monitor | SecOps Enterprise Security</title>
+  <meta name="description" content="Panel de control empresarial de análisis de composición de software (SCA) y gestión de vulnerabilidades de dependencias sin base de datos." />
+  <meta name="author" content="rrc2software.org" />
+  <meta name="robots" content="index, follow" />
+
+  <!-- Favicons e Iconos de Aplicación multi-dispositivo -->
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./favicon.svg" />
+  <link rel="mask-icon" href="./favicon.svg" color="#4f46e5" />
+
+  <!-- Color de la barra de navegación en navegadores móviles (Chrome/Android/Safari) -->
+  <meta name="theme-color" content="#4f46e5" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
+
+  <!-- Open Graph / Redes Sociales y Portales de Monitoreo -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="SecOps SCA Monitor | SecOps Enterprise Security" />
+  <meta property="og:description" content="Gestión y monitorización centralizada de vulnerabilidades de dependencias (composer, gemfile, package-lock, requirements, pom.xml)." />
+  <meta property="og:site_name" content="SecOps SCA Monitor" />
+  <meta property="og:image" content="/sca/og-image.png" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  
+  <!-- Twitter / X Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="SecOps SCA Monitor | SecOps Enterprise Security" />
+  <meta name="twitter:description" content="Gestión y monitorización centralizada de vulnerabilidades de dependencias (composer, gemfile, package-lock, requirements, pom.xml)." />
+  <meta name="twitter:image" content="/sca/og-image.png" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            crit: '#e11d48', high: '#ea580c', med: '#d97706', low: '#2563eb', sec: '#10b981'
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>[v-cloak] { display: none; }</style>
+</head>
+<body class="min-h-full bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200">
+<div id="app" v-cloak class="flex flex-col min-h-screen">
+
+  <!-- TOP NAVBAR -->
+  <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3 cursor-pointer" @click="selectedProject = null">
+	  <div class="w-9 h-9 flex items-center justify-center text-white font-bold text-lg"><img src="./favicon.svg"></div>
+      <div>
+        <h1 class="font-bold text-base tracking-tight leading-none">SecOps SCA Monitor | SecOps Enterprise Security</h1>
+        <span class="text-xs text-slate-500 dark:text-slate-400">Enterprise Security Dashboard</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <!-- Cron Info -->
+      <div class="hidden md:flex flex-col text-right text-xs mr-3">
+        <span class="text-slate-400">Último escaneo global ({{ settings.cron_schedule || '0 */6 * * *' }})</span>
+        <span class="font-medium">{{ formatDate(settings.last_global_scan) }}</span>
+      </div>
+
+      <!-- Botón Subir Manifiesto -->
+      <button @click="showUploadModal = true" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition">
+        + Subir Manifiesto
+      </button>
+
+      <!-- Botón Escanear Todo -->
+      <button @click="scanAll" :disabled="scanning" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow disabled:opacity-50 flex items-center gap-2 transition">
+        <span v-if="scanning" class="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full"></span>
+        <span>{{ scanning ? 'Analizando OSV.dev...' : 'Forzar Escaneo Global' }}</span>
+      </button>
+	  
+	  <!-- Botón Acerca de (About) -->
+      <button @click="showAboutModal = true" class="p-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300" title="Acerca de SecOps Enterprise Security">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+      </button>
+	  
+	  <!-- Botón Cerrar Sesión -->
+      <button v-if="apiToken" @click="logout" class="p-2 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 transition text-rose-600 dark:text-rose-400" title="Cerrar Sesión y Salir">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
+
+      <!-- Selector de Tema (Claro / Oscuro / Sistema) -->
+      <div class="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg text-xs font-medium">
+        <button @click="setTheme('light')" :class="themeMode==='light' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'" class="px-2.5 py-1 rounded-md transition">Claro</button>
+        <button @click="setTheme('dark')" :class="themeMode==='dark' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'" class="px-2.5 py-1 rounded-md transition">Oscuro</button>
+        <button @click="setTheme('system')" :class="themeMode==='system' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'" class="px-2.5 py-1 rounded-md transition">Auto</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+    <!-- ================= VISTA 1: EXECUTIVE DASHBOARD ================= -->
+    <div v-if="!selectedProject" class="space-y-6">
+
+      <!-- TARJETAS KPI -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Proyectos Monitorizados</p>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-3xl font-extrabold">{{ projects.length }}</span>
+            <span class="text-xs text-emerald-500 font-medium">Activos en /manifests</span>
+          </div>
+        </div>
+
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Dependencias Analizadas</p>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-3xl font-extrabold">{{ totalDependencies }}</span>
+            <span class="text-xs text-slate-400">Paquetes directos y transitivos</span>
+          </div>
+        </div>
+
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Vulnerabilidades Activas</p>
+          <div class="mt-2 flex items-baseline justify-between">
+            <span class="text-3xl font-extrabold text-rose-600 dark:text-rose-500">{{ totalVulns }}</span>
+            <div class="flex gap-1.5 text-xs font-bold">
+              <span class="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500">{{ globalCounts.CRITICAL }} C</span>
+              <span class="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500">{{ globalCounts.HIGH }} A</span>
+              <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">{{ globalCounts.MEDIUM }} M</span>
+              <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">{{ globalCounts.LOW }} B</span>
+			  <span class="px-1.5 py-0.5 rounded bg-gray-500/10 text-gray-500">{{ globalCounts.IGNORED }} I</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Security Score Global</p>
+            <div class="mt-2 flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold">{{ globalScore }}/100</span>
+            </div>
+          </div>
+          <div :class="gradeBadgeClass(globalGrade)" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner">
+            {{ globalGrade }}
+          </div>
+        </div>
+      </div>
+
+      <!-- SECCIÓN DE 4 GRÁFICAS INTERACTIVAS -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Severidad Global</h3>
+          <div class="h-48"><canvas id="severityChart"></canvas></div>
+        </div>
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Top Proyectos Vulnerables</h3>
+          <div class="h-48"><canvas id="topProjectsChart"></canvas></div>
+        </div>
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Distribución por Ecosistema</h3>
+          <div class="h-48"><canvas id="ecosystemChart"></canvas></div>
+        </div>
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Histórico de Detección</h3>
+          <div class="h-48"><canvas id="trendChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- TABLA DE PROYECTOS -->
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <h2 class="font-bold text-base">Inventario de Proyectos & Manifiestos</h2>
+          <input v-model="projectSearch" type="text" placeholder="Filtrar proyecto o ecosistema..." class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-400 bg-slate-50/50 dark:bg-slate-800/40">
+                <th class="py-3 px-6">Proyecto / Archivo</th>
+                <th class="py-3 px-4">Ecosistema</th>
+                <th class="py-3 px-4">Dependencias</th>
+                <th class="py-3 px-4">Vulnerabilidades</th>
+                <th class="py-3 px-4">Salud</th>
+                <th class="py-3 px-4">Último Análisis</th>
+                <th class="py-3 px-6 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              <tr v-for="p in filteredProjects" :key="p.project" class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <td class="py-3.5 px-6">
+                  <div class="font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline" @click="openProject(p)">{{ p.project }}</div>
+                  <div class="text-xs text-slate-400 font-mono">{{ p.filename }}</div>
+                </td>
+                <td class="py-3.5 px-4">
+                  <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800">{{ p.ecosystem }}</span>
+                </td>
+                <td class="py-3.5 px-4 font-semibold">{{ p.total_dependencies }}</td>
+                <td class="py-3.5 px-4">
+                  <div class="flex gap-1.5 text-xs font-bold">
+                    <span class="px-2 py-0.5 rounded bg-rose-600 text-white" title="Críticas">{{ p.counts.CRITICAL }}</span>
+                    <span class="px-2 py-0.5 rounded bg-orange-500 text-white" title="Altas">{{ p.counts.HIGH }}</span>
+                    <span class="px-2 py-0.5 rounded bg-amber-500 text-white" title="Medias">{{ p.counts.MEDIUM }}</span>
+                    <span class="px-2 py-0.5 rounded bg-blue-600 text-white" title="Bajas">{{ p.counts.LOW }}</span>
+                    <span class="px-2 py-0.5 rounded bg-gray-500 text-white" title="Ignoradas">{{ p.counts.IGNORED }}</span>
+                  </div>
+                </td>
+                <td class="py-3.5 px-4">
+                  <span :class="gradeBadgeClass(p.grade)" class="px-2.5 py-1 rounded-lg text-xs font-extrabold">{{ p.grade }} ({{ p.security_score }}%)</span>
+                </td>
+                <td class="py-3.5 px-4 text-xs text-slate-500">{{ formatDate(p.scanned_at) }}</td>
+                <td class="py-3.5 px-6 text-right space-x-2">
+                  <button @click="openProject(p)" class="px-3 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100">Detalle</button>
+                  <button @click="rescanProject(p.project)" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs hover:bg-slate-200" title="Re-escanear">↻</button>
+                  <button @click="confirmDelete(p.project)" class="px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-xs hover:bg-rose-100" title="Eliminar">✕</button>
+                </td>
+              </tr>
+              <tr v-if="filteredProjects.length === 0">
+                <td colspan="7" class="py-8 text-center text-slate-400">No hay proyectos registrados en <code>/manifests</code>. Sube un archivo para comenzar.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= VISTA 2: DRILL-DOWN DETALLE DE PROYECTO ================= -->
+    <div v-else class="space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div class="col-span-1 lg:col-span-3">
+          <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div>
+              <button @click="selectedProject = null" class="text-xs text-indigo-500 hover:underline mb-1 flex items-center gap-1">← Volver al Panel Ejecutivo</button>
+              <div class="flex items-center gap-3">
+                <h2 class="text-2xl font-extrabold">{{ selectedProject.project }}</h2>
+              </div>
+              <p class="text-xs text-slate-400 font-mono mt-1">Archivo origen: {{ selectedProject.filename }}<br>Ecosistema: {{ selectedProject.ecosystem }}<br>Dependencias: {{ selectedProject.total_dependencies }}</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button @click="rescanProject(selectedProject.project)" :disabled="scanning" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500">↻ Re-escanear ahora</button>
+              <button @click="exportJSON(selectedProject)" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">Exportar JSON</button>
+              <button @click="exportCSV(selectedProject)" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200">Exportar CSV</button>
+            </div>
+          </div>
+        </div>
+        
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          <div>
+            <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Security Score Project</p>
+            <div class="mt-2 flex items-baseline gap-2">
+              <span class="text-3xl font-extrabold">{{ selectedProject.security_score }}/100</span>
+            </div>
+          </div>
+          <div :class="gradeBadgeClass(selectedProject.grade)" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner">
+            {{ selectedProject.grade }}
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTROS DE VULNERABILIDADES -->
+      <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex flex-wrap items-center gap-2">
+          <button @click="vulnSeverityFilter = 'ALL'" :class="vulnSeverityFilter==='ALL' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Todas ({{ selectedProject.vulnerabilities.length }})</button>
+          <button @click="vulnSeverityFilter = 'CRITICAL'" :class="vulnSeverityFilter==='CRITICAL' ? 'bg-rose-600 text-white' : 'bg-rose-500/10 text-rose-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Críticas</button>
+          <button @click="vulnSeverityFilter = 'HIGH'" :class="vulnSeverityFilter==='HIGH' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Altas</button>
+          <button @click="vulnSeverityFilter = 'MEDIUM'" :class="vulnSeverityFilter==='MEDIUM' ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Medias</button>
+          <button @click="vulnSeverityFilter = 'LOW'" :class="vulnSeverityFilter==='LOW' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Bajas</button>
+        </div>
+        <input v-model="vulnSearch" type="text" placeholder="Buscar por paquete o CVE..." class="px-3.5 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 w-full sm:w-72" />
+      </div>
+
+      <!-- LISTADO DE VULNERABILIDADES CON ACORDEÓN -->
+      <div class="space-y-3">
+        <div v-for="v in filteredVulns" :key="v.osv_id + v.package" :class="v.ignored ? 'opacity-50' : ''" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden transition">
+          <div class="p-4 flex flex-wrap items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800/40" @click="toggleExpand(v.osv_id + v.package)">
+            <div class="flex items-center gap-3">
+              <span :class="severityBadge(v.severity)" class="px-2.5 py-1 rounded text-xs font-extrabold uppercase tracking-wider">
+                {{ v.severity }} · {{ v.cvss_score }}
+              </span>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="font-bold font-mono text-sm">{{ v.package }}</span>
+                  <span class="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono">v{{ v.installed_version }}</span>
+                  <span class="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Fix: {{ v.fixed_version }}</span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ v.summary }}</p>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3" @click.stop>
+              <a :href="'https://osv.dev/vulnerability/' + v.osv_id" target="_blank" class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{{ v.id }} ↗</a>
+              <button @click="toggleIgnore(selectedProject.project, v.id)" class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+                {{ v.ignored ? 'Restaurar Riesgo' : 'Aceptar Riesgo / Ignorar' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Detalle Técnico Desplegable -->
+          <div v-if="expandedVuln === (v.osv_id + v.package)" class="px-6 py-4 bg-slate-50 dark:bg-slate-950/70 border-t border-slate-200 dark:border-slate-800 text-xs space-y-2">
+            <div><strong class="text-slate-400">Vector CVSS:</strong> <code class="font-mono">{{ v.cvss_vector }}</code></div>
+            <div><strong class="text-slate-400">Descripción Técnica:</strong> <p class="mt-1 whitespace-pre-line text-slate-600 dark:text-slate-300 leading-relaxed">{{ v.details }}</p></div>
+            <div v-if="v.references && v.references.length">
+              <strong class="text-slate-400">Referencias:</strong>
+              <ul class="list-disc list-inside mt-1 space-y-0.5">
+                <li v-for="ref in v.references" :key="ref"><a :href="ref" target="_blank" class="text-indigo-500 hover:underline">{{ ref }}</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+  
+  <!-- FOOTER GLOBAL -->
+  <footer class="w-full border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 mt-auto py-5 backdrop-blur-sm">
+    <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+      
+      <!-- Izquierda: Copyright, Logo y Propiedad -->
+      <div class="flex items-center gap-2">
+        <img src="./favicon.svg" class="w-4 h-4 opacity-60 grayscale dark:invert-[0.2]" alt="Logo Mini">
+        <span>
+          &copy; 2026 SecOps Enterprise Security. Propiedad de 
+          <a href="https://www.rrc2software.org" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+            rrc2software
+          </a>.
+        </span>
+      </div>
+
+      <!-- Derecha: Enlaces Legales/Soporte y Versión -->
+      <div class="flex items-center gap-3.5">
+        <a href="/sca/docs" target="_blank" class="hover:text-slate-800 dark:hover:text-slate-200 transition">Documentación API</a>
+        <span class="text-slate-300 dark:text-slate-700">&bull;</span>
+        <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" class="hover:text-slate-800 dark:hover:text-slate-200 transition">GitHub</a>
+        <span class="text-slate-300 dark:text-slate-700">&bull;</span>
+        <a href="#" @click.prevent="showAboutModal = true" class="hover:text-slate-800 dark:hover:text-slate-200 transition">Acerca de</a>
+        <span class="text-slate-300 dark:text-slate-700">&bull;</span>
+        <span class="font-mono text-[10px] px-2 py-0.5 bg-slate-200/50 dark:bg-slate-800 rounded font-semibold" title="Versión del Sistema">
+          v{{ appVersion }}
+        </span>
+      </div>
+      
+    </div>
+  </footer>
+
+  <!-- MODAL SUBIDA DE ARCHIVO -->
+  <div v-if="showUploadModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl">
+      <div class="flex justify-between items-center">
+        <h3 class="font-bold text-lg">Subir Manifiesto de Dependencias</h3>
+        <button @click="showUploadModal = false" class="text-slate-400 hover:text-slate-600">✕</button>
+      </div>
+      <p class="text-xs text-slate-500">Soporta <code>composer.lock</code>, <code>Gemfile.lock</code>, <code>package-lock.json</code> y <code>requirements.txt</code>.</p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Nombre del Proyecto (si el archivo no incluye prefijo)</label>
+          <input v-model="uploadProjectName" type="text" placeholder="ej. pasarela-pagos" class="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
+        </div>
+        <div>
+          <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Seleccionar Archivo</label>
+          <input type="file" @change="onFileChange" class="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:font-semibold file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-950 dark:file:text-indigo-300" />
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3">
+        <button @click="showUploadModal = false" class="px-4 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800">Cancelar</button>
+        <button @click="submitUpload" :disabled="!uploadFile || scanning" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50">
+          {{ scanning ? 'Subiendo y Escaneando...' : 'Guardar y Analizar' }}
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- MODAL ACERCA DE (ABOUT SECTION) -->
+  <div v-if="showAboutModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-3">
+          <img class="w-9 h-9" src="./favicon.svg">
+          <div>
+            <h3 class="font-extrabold text-base leading-tight">SecOps SCA Monitor | SecOps Enterprise Security</h3>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-xs text-slate-400 font-mono">{{ appVersion }}</span>
+              <span class="text-slate-300 dark:text-slate-700">&bull;</span>
+              <!-- ENLACES RÁPIDOS (DOCUMENTACIÓN / GITHUB) -->
+              <a href="/docs" target="_blank" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
+                Docs &nearr;
+              </a>
+              <span class="text-slate-300 dark:text-slate-700">&bull;</span>
+              <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
+                GitHub &nearr;
+              </a>
+            </div>
+          </div>
+        </div>
+        <button @click="showAboutModal = false" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg font-bold">&#10005;</button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+        <p>
+          <strong>SecOps SCA Monitor</strong> es una plataforma de análisis de composición de software empresarial orientada a la monitorización y gestión continua de vulnerabilidades de dependencias. Diseñada bajo una arquitectura <strong>100% sin base de datos (Database-less)</strong>, opera directamente sobre el sistema de archivos local mediante sincronización atómica y consultas por lotes asíncronas.
+        </p>
+
+        <div class="grid grid-cols-2 gap-3 pt-1">
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <span class="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">Backend Stack</span>
+            <ul class="space-y-0.5 text-slate-500">
+              <li>&bull; Python 3.14+ (FastAPI / Uvicorn)</li>
+              <li>&bull; Httpx (Async OSV.dev Client)</li>
+              <li>&bull; Apache HTTP Reverse Proxy</li>
+            </ul>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+            <span class="font-bold text-indigo-600 dark:text-indigo-400 block mb-1">Frontend Stack</span>
+            <ul class="space-y-0.5 text-slate-500">
+              <li>&bull; Vue 3 (Composition API)</li>
+              <li>&bull; TailwindCSS (Dark/Light Mode)</li>
+              <li>&bull; Chart.js (Executive Metrics)</li>
+            </ul>
+          </div>
+        </div>
+
+        <div>
+          <span class="font-bold text-slate-700 dark:text-slate-200 block mb-1">Ecosistemas Sometidos a Análisis:</span>
+          <p class="text-slate-500">Packagist (PHP), RubyGems (Ruby), npm (Node.js), PyPI (Python) y Maven (Java).</p>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-wrap items-center justify-between text-[11px] text-slate-400">
+        <span>
+          &copy; 2026 Propiedad de 
+          <a href="https://www.rrc2software.org" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
+            rrc2software
+          </a>. Todos los derechos reservados.
+        </span>
+        <button @click="showAboutModal = false" class="px-4 py-2 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-500 transition">Entendido</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- MODAL DE AUTENTICACIÓN / SOLICITUD DE TOKEN -->
+  <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
+      <div class="flex items-center gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div class="p-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="font-extrabold text-base leading-tight">Acceso Restringido</h3>
+          <span class="text-xs text-slate-400">SecOps Enterprise Security Authentication</span>
+        </div>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-600 dark:text-slate-300">
+        <p>
+          Este panel requiere un <strong>Token Bearer</strong> válido para autorizar las consultas contra la API de análisis de dependencias. Introduce tu token de acceso corporativo.
+        </p>
+
+        <div>
+          <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">API Bearer Token</label>
+          <input 
+            v-model="tempApiToken" 
+            @keyup.enter="saveToken"
+            type="password" 
+            placeholder="token" 
+            class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+          />
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+        <span class="text-[11px] text-slate-400">Se guardará de forma segura en tu navegador.</span>
+        <button 
+          @click="saveToken" 
+          :disabled="!tempApiToken.trim()"
+          class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow disabled:opacity-50 transition"
+        >
+          Guardar y Acceder
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+
+createApp({
+  setup() {
+    const projects = ref([]);
+    const settings = ref({});
+    const selectedProject = ref(null);
+    const scanning = ref(false);
+    const projectSearch = ref('');
+    const vulnSearch = ref('');
+    const vulnSeverityFilter = ref('ALL');
+    const expandedVuln = ref(null);
+    const appVersion = ref('N/A');
+    const tempApiToken = ref('');
+    const apiToken = ref(localStorage.getItem('api_token') || '');
+
+    const showUploadModal = ref(false);
+    const showAboutModal = ref(false);
+    const showAuthModal = ref(false);
+    const uploadFile = ref(null);
+    const uploadProjectName = ref('');
+    const themeMode = ref(localStorage.getItem('theme') || 'system');
+
+    let charts = {};
+	
+	const apiFetch = async (endpoint, options = {}) => {
+      options.headers = options.headers || {};
+      
+      if (apiToken.value) {
+        options.headers['Authorization'] = `Bearer ${apiToken.value}`;
+      }
+
+      if (options.body && typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        options.headers['Content-Type'] = 'application/json';
+        options.body = JSON.stringify(options.body);
+      }
+
+      const res = await fetch(endpoint, options);
+      
+      if (res.status === 401) {
+        // Token inválido o requerido -> Mostrar modal de autenticación
+        showAuthModal.value = true;
+        throw new Error('Unauthorized');
+      }
+      
+      return res;
+    };
+
+    const saveToken = () => {
+      if (!tempApiToken.value.trim()) return;
+      apiToken.value = tempApiToken.value.trim();
+      localStorage.setItem('api_token', apiToken.value);
+      showAuthModal.value = false;
+      tempApiToken.value = '';
+      // Recargar datos del dashboard con el nuevo token
+      fetchDashboard();
+    };
+	
+	const logout = () => {
+      // 1. Eliminar token de persistencia y de la variable reactiva
+      localStorage.removeItem('api_token');
+      apiToken.value = '';
+      
+      // 2. Destruir los datos sensibles en memoria instantáneamente
+      projects.value = [];
+      selectedProject.value = null;
+      settings.value = {};
+      
+      // 3. Prevenir navegación hacia atrás (reemplaza el estado actual en el historial)
+      window.history.replaceState(null, '', window.location.href);
+      
+      // 4. Forzar una recarga limpia del navegador. 
+      // Al arrancar de nuevo sin token, la app lanzará automáticamente el Modal de Autenticación.
+      window.location.reload();
+    };
+
+    const applyTheme = () => {
+      const isDark = themeMode.value === 'dark' || (themeMode.value === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.classList.toggle('dark', isDark);
+    };
+
+    const setTheme = (mode) => {
+      themeMode.value = mode;
+      localStorage.setItem('theme', mode);
+      applyTheme();
+    };
+
+	const fetchVersion = async () => {
+	  try {
+		const res = await apiFetch('/sca/api/version');
+		const data = await res.json();
+        appVersion.value = data.version || 'N/A';
+	  } catch (err) {
+		console.error('No se pudo cargar la versión:', err);
+	  }
+	};
+
+    const fetchDashboard = async () => {
+      const res = await apiFetch('/sca/api/dashboard');
+      const data = await res.json();
+      projects.value = data.projects || [];
+      settings.value = data.settings || {};
+      if (!selectedProject.value) {
+        await nextTick();
+        renderCharts();
+      }
+    };
+
+    const scanAll = async () => {
+      scanning.value = true;
+      try {
+        await apiFetch('/sca/api/scan/all', { method: 'POST' });
+        await fetchDashboard();
+      } finally {
+        scanning.value = false;
+      }
+    };
+
+    const rescanProject = async (projName) => {
+      scanning.value = true;
+      try {
+        const res = await apiFetch(`/sca/api/scan/${projName}`, { method: 'POST' });
+        const updated = await res.json();
+        await fetchDashboard();
+        if (selectedProject.value && selectedProject.value.project === projName) {
+          selectedProject.value = updated;
+        }
+      } finally {
+        scanning.value = false;
+      }
+    };
+
+    const confirmDelete = async (projName) => {
+      if (!confirm(`¿Eliminar definitivamente el proyecto "${projName}" de /manifests y /results?`)) return;
+      await apiFetch(`/sca/api/projects/${projName}`, { method: 'DELETE' });
+      await fetchDashboard();
+    };
+
+    const onFileChange = (e) => { uploadFile.value = e.target.files[0]; };
+
+    const submitUpload = async () => {
+      if (!uploadFile.value) return;
+      scanning.value = true;
+      try {
+        const fd = new FormData();
+        fd.append('file', uploadFile.value);
+        fd.append('project_name', uploadProjectName.value);
+        const res = await apiFetch('/sca/api/upload', { method: 'POST', body: fd });
+        if (!res.ok) {
+          const err = await res.json();
+          alert(err.detail || 'Error al subir archivo');
+          return;
+        }
+        showUploadModal.value = false;
+        uploadFile.value = null;
+        uploadProjectName.value = '';
+        await fetchDashboard();
+      } finally {
+        scanning.value = false;
+      }
+    };
+
+    const toggleIgnore = async (projName, vulnId) => {
+      const fd = new FormData();
+      fd.append('vuln_id', vulnId);
+      const res = await apiFetch(`/sca/api/projects/${projName}/ignore`, { method: 'POST', body: fd });
+      const updated = await res.json();
+      selectedProject.value = updated;
+      await fetchDashboard();
+    };
+
+    const totalDependencies = computed(() => projects.value.reduce((a, b) => a + (b.total_dependencies || 0), 0));
+    const globalCounts = computed(() => {
+      const c = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, IGNORED: 0 };
+      projects.value.forEach(p => {
+        Object.keys(c).forEach(k => c[k] += (p.counts?.[k] || 0));
+      });
+      return c;
+    });
+    const totalVulns = computed(() => Object.values(globalCounts.value).reduce((a, b) => a + b, 0));
+    const globalScore = computed(() => {
+      if (!projects.value.length) return 100;
+      return Math.round(projects.value.reduce((a, b) => a + b.security_score, 0) / projects.value.length);
+    });
+    const globalGrade = computed(() => {
+      const s = globalScore.value;
+      return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 65 ? 'C' : s >= 50 ? 'D' : 'F';
+    });
+
+    const filteredProjects = computed(() => {
+      const q = projectSearch.value.toLowerCase();
+      return projects.value.filter(p => p.project.toLowerCase().includes(q) || p.ecosystem.toLowerCase().includes(q));
+    });
+
+    const filteredVulns = computed(() => {
+      if (!selectedProject.value) return [];
+      return selectedProject.value.vulnerabilities.filter(v => {
+        const matchSev = vulnSeverityFilter.value === 'ALL' || v.severity === vulnSeverityFilter.value;
+        const q = vulnSearch.value.toLowerCase();
+        const matchQ = v.package.toLowerCase().includes(q) || v.id.toLowerCase().includes(q);
+        return matchSev && matchQ;
+      });
+    });
+
+    const renderCharts = () => {
+      Object.values(charts).forEach(c => c?.destroy());
+      const c = globalCounts.value;
+
+      const ctxSev = document.getElementById('severityChart');
+      if (ctxSev) {
+        charts.sev = new Chart(ctxSev, {
+          type: 'doughnut',
+          data: {
+            labels: ['Crítica', 'Alta', 'Media', 'Baja', 'Ignorada'],
+            datasets: [{ data: [c.CRITICAL, c.HIGH, c.MEDIUM, c.LOW, c.IGNORED], backgroundColor: ['#e11d48', '#ea580c', '#d97706', '#2563eb', '#6b7280'], borderWidth: 0 }]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
+        });
+      }
+
+      const ctxTop = document.getElementById('topProjectsChart');
+      if (ctxTop) {
+        // const top5 = [...projects.value].sort((a, b) => (b.counts.CRITICAL*10 + b.counts.HIGH) - (a.counts.CRITICAL*10 + a.counts.HIGH)).slice(0, 5);
+		const top5 = [...projects.value].sort((a, b) => (a.security_score - b.security_score)).slice(0, 5);
+        charts.top = new Chart(ctxTop, {
+          type: 'bar',
+          data: {
+            labels: top5.map(p => p.project),
+            datasets: [
+              { label: 'Crítica', data: top5.map(p => p.counts.CRITICAL), backgroundColor: '#e11d48' },
+              { label: 'Alta', data: top5.map(p => p.counts.HIGH), backgroundColor: '#ea580c' },
+              { label: 'Media', data: top5.map(p => p.counts.MEDIUM), backgroundColor: '#d97706' },
+              { label: 'Baja', data: top5.map(p => p.counts.LOW), backgroundColor: '#2563eb' },
+			  { label: 'Ignorada', data: top5.map(p => p.counts.IGNORED), backgroundColor: '#6b7280' }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
+        });
+      }
+
+      const ctxEco = document.getElementById('ecosystemChart');
+      if (ctxEco) {
+        const ecoMap = {};
+        projects.value.forEach(p => { ecoMap[p.ecosystem] = (ecoMap[p.ecosystem] || 0) + 1; });
+        charts.eco = new Chart(ctxEco, {
+          type: 'bar',
+          data: {
+            labels: Object.keys(ecoMap),
+            datasets: [{ label: 'Proyectos', data: Object.values(ecoMap), backgroundColor: '#6366f1' }]
+          },
+          options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+      }
+
+      const ctxTrend = document.getElementById('trendChart');
+      if (ctxTrend) {
+        const hist = settings.value.scan_history || [];
+        charts.trend = new Chart(ctxTrend, {
+          type: 'line',
+          data: {
+            labels: hist.map(h => h.date),
+            datasets: [
+              { label: 'Crítica', data: hist.map(h => h.CRITICAL), borderColor: '#e11d48', tension: 0.3 },
+              { label: 'Alta', data: hist.map(h => h.HIGH), borderColor: '#ea580c', tension: 0.3 },
+			  { label: 'Media', data: hist.map(h => h.MEDIUM), borderColor: '#d97706', tension: 0.3 },
+			  { label: 'Baja', data: hist.map(h => h.LOW), borderColor: '#2563eb', tension: 0.3 }
+            ]
+          },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
+        });
+      }
+    };
+
+    const openProject = (p) => { selectedProject.value = p; };
+    const toggleExpand = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; };
+    const formatDate = (iso) => iso ? new Date(iso).toLocaleString() : 'Pendiente';
+
+    const gradeBadgeClass = (g) => ({
+      'A': 'bg-emerald-500/15 text-emerald-500',
+      'B': 'bg-teal-500/15 text-teal-500',
+      'C': 'bg-amber-500/15 text-amber-500',
+      'D': 'bg-orange-500/15 text-orange-500',
+      'F': 'bg-rose-500/15 text-rose-500'
+    }[g] || 'bg-slate-500/15 text-slate-400');
+
+    const severityBadge = (s) => ({
+      'CRITICAL': 'bg-rose-600 text-white',
+      'HIGH': 'bg-orange-500 text-white',
+      'MEDIUM': 'bg-amber-500 text-white',
+      'LOW': 'bg-blue-600 text-white'
+    }[s] || 'bg-slate-600 text-white');
+
+    const exportJSON = (p) => {
+      const blob = new Blob([JSON.stringify(p, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${p.project}_report.json`;
+      a.click();
+    };
+
+    const exportCSV = (p) => {
+      const rows = [['Paquete', 'Version_Actual', 'Version_Segura', 'CVE_ID', 'Severidad', 'CVSS', 'Ignorado']];
+      p.vulnerabilities.forEach(v => rows.push([v.package, v.installed_version, v.fixed_version, v.id, v.severity, v.cvss_score, v.ignored]));
+      const csv = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${p.project}_vulnerabilities.csv`;
+      a.click();
+    };
+
+    watch(selectedProject, async (val) => {
+      if (!val) { await nextTick(); renderCharts(); }
+    });
+
+    onMounted(() => {
+      applyTheme();
+      // Calcular la URL absoluta dinámicamente basándose en dónde está cargado el frontend
+      const origin = window.location.origin; // ej. https://192.168.1.50 o https://seguridad.local
+      const ogImageUrl = `${origin}/sca/og-image.png`;
+      
+      // Buscar o crear las etiquetas og:image y twitter:image para inyectarles la URL absoluta
+      const setAbsoluteMeta = (propertyOrName, value) => {
+        let el = document.querySelector(`meta[property="${propertyOrName}"]`) || 
+    	         document.querySelector(`meta[name="${propertyOrName}"]`);
+    	if (el) {
+          el.setAttribute('content', value);
+        }
+      };
+    
+      setAbsoluteMeta('og:image', ogImageUrl);
+      setAbsoluteMeta('twitter:image', ogImageUrl);
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+      fetchDashboard();
+	  fetchVersion();
+    });
+
+    return {
+      projects, settings, selectedProject, scanning, projectSearch, vulnSearch, vulnSeverityFilter, expandedVuln,
+      showUploadModal, showAboutModal, uploadFile, uploadProjectName, themeMode, setTheme,
+      totalDependencies, globalCounts, totalVulns, globalScore, globalGrade, filteredProjects, filteredVulns,
+      scanAll, rescanProject, confirmDelete, onFileChange, submitUpload, toggleIgnore,
+      openProject, toggleExpand, formatDate, gradeBadgeClass, severityBadge, exportJSON, exportCSV, appVersion,
+	  saveToken, tempApiToken, showAuthModal, logout, apiToken
+    };
+  }
+}).mount('#app');
+</script>
+</body>
+</html>

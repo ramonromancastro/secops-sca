@@ -1,0 +1,46 @@
+# ==========================================
+# SecOps SCA - Git Ignore Configuration
+# ==========================================
+
+# Datos de la Aplicación (Evitar subir escaneos o tokens reales)
+/manifests/
+/results/
+/config/settings.json
+
+# Entornos Virtuales y Python
+venv/
+env/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Archivos de Entorno / Secretos
+.env
+.env.local
+
+# Frontend (En caso de usar dependencias de Node en el futuro)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Archivos del Sistema Operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Configuración de IDEs y Editores
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

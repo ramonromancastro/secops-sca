@@ -1,0 +1,26 @@
+# ==========================================
+# SecOps SCA - Editor Configuration
+# ==========================================
+# top-most EditorConfig file
+root = true
+
+# Reglas por defecto para todos los archivos
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Python (Estándar PEP8)
+[*.py]
+indent_size = 4
+
+# Scripts de Bash / Shell
+[*.sh]
+indent_size = 4
+
+# Frontend y Configuración (HTML, JS, CSS, JSON, YAML)
+[*.{html,js,css,json,yml,yaml,md}]
+indent_size = 2
