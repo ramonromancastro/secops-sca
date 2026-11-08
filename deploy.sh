@@ -387,7 +387,7 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now vuln-backend.service
+systemctl enable --now secops-sca-backend.service
 
 # ------------------------------------------------------------------------------
 # Configuración de Apache HTTP
