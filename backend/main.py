@@ -5,6 +5,7 @@ import os
 import json
 import httpx
 import secrets
+import asyncio
 from datetime import datetime, timezone
 from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Security, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +30,9 @@ def load_settings() -> dict:
             "last_global_scan": None,
             "ignored_vulnerabilities": [],
             "scan_history": [],
+            "scan_history_size": 15,
             "relative_url_root": "",
+            "scan_batch_size": 10,
         }
         save_settings(default_cfg)
         return default_cfg
@@ -238,31 +241,40 @@ async def get_dashboard():
 @app.post("/api/scan/all", dependencies=[Depends(verify_token)])
 async def scan_all_projects():
     settings = load_settings()
+    batch_size = max(1, int(settings.get("scan_batch_size", 10)))
     results = []
     totals = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
 
-    for manifest in MANIFESTS_DIR.iterdir():
-        if manifest.is_file() and "_" in manifest.name:
-            try:
-                res = await scan_single_manifest(manifest, settings)
-                results.append(res)
-                for k in totals:
-                    totals[k] += res["counts"].get(k, 0)
-            except Exception as e:
-                print(f"Error escaneando {manifest.name}: {e}")
+    # 1. Recopilamos todos los manifiestos válidos
+    manifests_to_scan = [m for m in MANIFESTS_DIR.iterdir() if m.is_file() and "_" in m.name]
+    gathered_results = []
 
+    # 2. Iteramos en bloques de BATCH_SIZE (ej. de 10 en 10)
+    for i in range(0, len(manifests_to_scan), batch_size):
+        batch = manifests_to_scan[i:i + batch_size]
+        tasks = [scan_single_manifest(m, settings) for m in batch]
+
+        # Ejecutamos las tareas del bloque actual en paralelo
+        batch_results = await asyncio.gather(*tasks, return_exceptions=True)
+        gathered_results.extend(batch_results)
+
+    # 3. Procesamos los resultados de forma segura
+    for manifest, res in zip(manifests_to_scan, gathered_results):
+        if isinstance(res, Exception):
+            print(f"Error escaneando {manifest.name}: {res}")
+        else:
+            results.append(res)
+            for k in totals:
+                totals[k] += res["counts"].get(k, 0)
+
+    # 4. Guardamos las estadísticas
     now_iso = datetime.now(timezone.utc).isoformat()
-    # 1. Añadimos horas y minutos al string para hacerlo único por momento
-    timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    timestamp_str = datetime.now(timezone.utc).isoformat()
     settings["last_global_scan"] = now_iso
 
-    # Actualizar historial de tendencia (máximo 15 puntos)
     history = settings.get("scan_history", [])
     entry = {"date": timestamp_str, **totals}
-
-    # 2. Eliminamos el "if" que sobrescribía. Ahora siempre añadimos el nuevo escaneo.
     history.append(entry)
-
     settings["scan_history"] = history[-15:]
     save_settings(settings)
 

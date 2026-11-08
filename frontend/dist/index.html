@@ -244,7 +244,7 @@
               <div class="flex items-center gap-3">
                 <h2 class="text-2xl font-extrabold">{{ selectedProject.project }}</h2>
               </div>
-              <p class="text-xs text-slate-400 font-mono mt-1">Archivo origen: {{ selectedProject.filename }}<br>Ecosistema: {{ selectedProject.ecosystem }}<br>Dependencias: {{ selectedProject.total_dependencies }}</p>
+              <p class="text-xs text-slate-400 font-mono mt-1">Archivo origen: {{ selectedProject.filename }}<br>Ecosistema: {{ selectedProject.ecosystem }} ({{ selectedProject.file_type }})<br>Dependencias: {{ selectedProject.total_dependencies }}<br>Último escaneo: {{ formatDate(selectedProject.scanned_at) }}</p>
             </div>
 
             <div class="flex flex-wrap gap-2">
@@ -611,6 +611,17 @@ createApp({
       try {
         await apiFetch('/sca/api/scan/all', { method: 'POST' });
         await fetchDashboard();
+        if (selectedProject.value) {
+          const updatedProject = projects.value.find(
+            p => p.project === selectedProject.value.project
+          );
+
+          if (updatedProject) {
+            openProject(updatedProject);
+          } else {
+            selectedProject.value = null;
+          }
+        }
       } finally {
         scanning.value = false;
       }
@@ -829,7 +840,8 @@ createApp({
     };
 
     watch(selectedProject, async (val) => {
-      if (!val) { await nextTick(); renderCharts(); }
+      if (!val) { vulnSeverityFilter.value = 'ALL'; await nextTick(); renderCharts(); window.scrollTo(0, 0); }
+      else { await nextTick(); window.scrollTo(0, 0); }
     });
 
     onMounted(() => {
