@@ -15,6 +15,7 @@ UPGRADE_MODE="false"
 DOWNLOAD_VERSION=""
 MIN_PYTHON_VERSION="3.11"
 PYTHON_BIN="python3"
+APP_USER="secops-sca"
 
 # ------------------------------------------------------------------------------
 # Funciones de Ayuda, Versión y GitHub
@@ -202,6 +203,13 @@ fi
 # ------------------------------------------------------------------------------
 # Detección de Sistema Operativo e Instalación de Dependencias
 # ------------------------------------------------------------------------------
+
+# Crear usuario de sistema dedicado si no existe (sin shell de login y sin home)
+if ! id "$APP_USER" &>/dev/null; then
+    echo "==> Creando usuario dedicado de sistema: $APP_USER"
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER"
+fi
+
 source /etc/os-release
 echo "==> Detectado sistema operativo: $PRETTY_NAME"
 
@@ -337,10 +345,10 @@ fi
 # ------------------------------------------------------------------------------
 # Permisos Estrictos de Sistema de Archivos
 # ------------------------------------------------------------------------------
-echo "==> Aplicando permisos para usuario $WEB_USER..."
-chown -R root:"$WEB_USER" "$APP_DIR"
+echo "==> Aplicando permisos para usuario $APP_USER..."
+chown -R root:"$APP_USER" "$APP_DIR"
 chmod -R 750 "$APP_DIR"
-chown -R "$WEB_USER":"$WEB_USER" "$APP_DIR"/{manifests,results,config}
+chown -R "$APP_USER":"$WEB_USER" "$APP_DIR"/{manifests,results,config}
 chmod -R 770 "$APP_DIR"/{manifests,results,config}
 
 # ------------------------------------------------------------------------------
@@ -374,13 +382,33 @@ Description=SecOps SCA FastAPI Backend
 After=network.target
 
 [Service]
-User=$WEB_USER
-Group=$WEB_USER
+User=$APP_USER
+Group=$APP_USER
 WorkingDirectory=$APP_DIR/backend
 Environment="PATH=$APP_DIR/backend/venv/bin"
 ExecStart=$APP_DIR/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port $BACKEND_PORT --workers 2
 Restart=always
 RestartSec=3
+
+# ==========================================
+# HARDENING & SANDBOXING (Contención)
+# ==========================================
+
+# 1. Privilegios y Sistema de Archivos
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=$APP_DIR/manifests $APP_DIR/results $APP_DIR/config
+
+# 2. Aislamiento de directorios críticos
+ProtectHome=true
+PrivateTmp=true
+
+# 3. Protección del Kernel y Hardware
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
 
 [Install]
 WantedBy=multi-user.target
@@ -399,27 +427,37 @@ cat <<EOF > "$CONF_PATH"
 # =====================================================================
 
 ProxyPreserveHost On
+
+# 1. Proxy Inverso para la API y Swagger
 ProxyPass ${ALIAS_PATH}/api/ http://127.0.0.1:${BACKEND_PORT}/api/
 ProxyPassReverse ${ALIAS_PATH}/api/ http://127.0.0.1:${BACKEND_PORT}/api/
+
 ProxyPass ${ALIAS_PATH}/docs http://127.0.0.1:${BACKEND_PORT}/docs
 ProxyPassReverse ${ALIAS_PATH}/docs http://127.0.0.1:${BACKEND_PORT}/docs
+
 ProxyPass ${ALIAS_PATH}/openapi.json http://127.0.0.1:${BACKEND_PORT}/openapi.json
 ProxyPassReverse ${ALIAS_PATH}/openapi.json http://127.0.0.1:${BACKEND_PORT}/openapi.json
 
+# 2. Límite de subida de 15MB aplicado correctamente a los endpoints de la API
+<Location "${ALIAS_PATH}/api/">
+    LimitRequestBody 15728640
+</Location>
+
+# 3. Servir el Frontend de Vue (SPA)
 Alias ${ALIAS_PATH} "$APP_DIR/frontend/dist"
 
 <Directory "$APP_DIR/frontend/dist">
     Options -Indexes +FollowSymLinks
     AllowOverride None
     Require all granted
-    LimitRequestBody 15728640
+
+    # Redirige rutas internas de Vue al index (Evita Error 404 al recargar)
+    FallbackResource ${ALIAS_PATH}/index.html
+
+    # Cabeceras de Seguridad
     Header always set X-Content-Type-Options "nosniff"
     Header always set X-Frame-Options "SAMEORIGIN"
 </Directory>
-
-<DirectoryMatch "^$APP_DIR/(manifests|results|config|backend)">
-    Require all denied
-</DirectoryMatch>
 EOF
 
 if [[ "$OS_FAMILY" == "debian" ]]; then
@@ -437,7 +475,7 @@ echo "==> Configurando tarea programada cron..."
 cat <<EOF > /etc/cron.d/secops-sca-scanner
 SHELL=/bin/bash
 PATH=/sbin:/bin:/usr/sbin:/usr/bin
-0 */6 * * * $WEB_USER curl -s -X POST http://127.0.0.1:$BACKEND_PORT/api/scan/all >/dev/null 2>&1
+0 */6 * * * $APP_USER curl -s -X POST http://127.0.0.1:$BACKEND_PORT/api/scan/all >/dev/null 2>&1
 EOF
 chmod 644 /etc/cron.d/secops-sca-scanner
 

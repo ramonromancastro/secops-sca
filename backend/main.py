@@ -252,18 +252,20 @@ async def scan_all_projects():
                 print(f"Error escaneando {manifest.name}: {e}")
 
     now_iso = datetime.now(timezone.utc).isoformat()
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # 1. Añadimos horas y minutos al string para hacerlo único por momento
+    timestamp_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     settings["last_global_scan"] = now_iso
 
     # Actualizar historial de tendencia (máximo 15 puntos)
     history = settings.get("scan_history", [])
-    entry = {"date": today_str, **totals}
-    if history and history[-1].get("date") == today_str:
-        history[-1] = entry
-    else:
-        history.append(entry)
+    entry = {"date": timestamp_str, **totals}
+
+    # 2. Eliminamos el "if" que sobrescribía. Ahora siempre añadimos el nuevo escaneo.
+    history.append(entry)
+
     settings["scan_history"] = history[-15:]
     save_settings(settings)
+
     return {"status": "ok", "scanned_projects": len(results), "last_global_scan": now_iso}
 
 @app.post(

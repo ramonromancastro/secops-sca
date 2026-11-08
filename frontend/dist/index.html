@@ -30,7 +30,7 @@
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  
+
   <!-- Twitter / X Cards -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="SecOps SCA Monitor | SecOps Enterprise Security" />
@@ -78,17 +78,17 @@
         + Subir Manifiesto
       </button>
 
-      <!-- Botón Escanear Todo -->
+      <!-- Botón Escanear All -->
       <button @click="scanAll" :disabled="scanning" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow disabled:opacity-50 flex items-center gap-2 transition">
         <span v-if="scanning" class="animate-spin h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full"></span>
         <span>{{ scanning ? 'Analizando OSV.dev...' : 'Forzar Escaneo Global' }}</span>
       </button>
-	  
+
 	  <!-- Botón Acerca de (About) -->
       <button @click="showAboutModal = true" class="p-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 transition text-slate-600 dark:text-slate-300" title="Acerca de SecOps Enterprise Security">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
       </button>
-	  
+
 	  <!-- Botón Cerrar Sesión -->
       <button v-if="apiToken" @click="logout" class="p-2 rounded-lg text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 transition text-rose-600 dark:text-rose-400" title="Cerrar Sesión y Salir">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -254,7 +254,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Security Score Project</p>
@@ -322,16 +322,16 @@
     </div>
 
   </main>
-  
+
   <!-- FOOTER GLOBAL -->
   <footer class="w-full border-t border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 mt-auto py-5 backdrop-blur-sm">
     <div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-      
+
       <!-- Izquierda: Copyright, Logo y Propiedad -->
       <div class="flex items-center gap-2">
         <img src="./favicon.svg" class="w-4 h-4 opacity-60 grayscale dark:invert-[0.2]" alt="Logo Mini">
         <span>
-          &copy; 2026 SecOps Enterprise Security. Propiedad de 
+          &copy; 2026 SecOps Enterprise Security. Propiedad de
           <a href="https://www.rrc2software.org" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
             rrc2software
           </a>.
@@ -350,7 +350,7 @@
           v{{ appVersion }}
         </span>
       </div>
-      
+
     </div>
   </footer>
 
@@ -382,7 +382,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- MODAL ACERCA DE (ABOUT SECTION) -->
   <div v-if="showAboutModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
@@ -440,7 +440,7 @@
 
       <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex flex-wrap items-center justify-between text-[11px] text-slate-400">
         <span>
-          &copy; 2026 Propiedad de 
+          &copy; 2026 Propiedad de
           <a href="https://www.rrc2software.org" target="_blank" rel="noopener noreferrer" class="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
             rrc2software
           </a>. Todos los derechos reservados.
@@ -449,7 +449,7 @@
       </div>
     </div>
   </div>
-  
+
   <!-- MODAL DE AUTENTICACIÓN / SOLICITUD DE TOKEN -->
   <div v-if="showAuthModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-5 shadow-2xl">
@@ -472,20 +472,20 @@
 
         <div>
           <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">API Bearer Token</label>
-          <input 
-            v-model="tempApiToken" 
+          <input
+            v-model="tempApiToken"
             @keyup.enter="saveToken"
-            type="password" 
-            placeholder="token" 
-            class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+            type="password"
+            placeholder="token"
+            class="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
         </div>
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
         <span class="text-[11px] text-slate-400">Se guardará de forma segura en tu navegador.</span>
-        <button 
-          @click="saveToken" 
+        <button
+          @click="saveToken"
           :disabled="!tempApiToken.trim()"
           class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white shadow disabled:opacity-50 transition"
         >
@@ -522,10 +522,10 @@ createApp({
     const themeMode = ref(localStorage.getItem('theme') || 'system');
 
     let charts = {};
-	
+
 	const apiFetch = async (endpoint, options = {}) => {
       options.headers = options.headers || {};
-      
+
       if (apiToken.value) {
         options.headers['Authorization'] = `Bearer ${apiToken.value}`;
       }
@@ -536,13 +536,13 @@ createApp({
       }
 
       const res = await fetch(endpoint, options);
-      
+
       if (res.status === 401) {
         // Token inválido o requerido -> Mostrar modal de autenticación
         showAuthModal.value = true;
         throw new Error('Unauthorized');
       }
-      
+
       return res;
     };
 
@@ -555,21 +555,21 @@ createApp({
       // Recargar datos del dashboard con el nuevo token
       fetchDashboard();
     };
-	
+
 	const logout = () => {
       // 1. Eliminar token de persistencia y de la variable reactiva
       localStorage.removeItem('api_token');
       apiToken.value = '';
-      
+
       // 2. Destruir los datos sensibles en memoria instantáneamente
       projects.value = [];
       selectedProject.value = null;
       settings.value = {};
-      
+
       // 3. Prevenir navegación hacia atrás (reemplaza el estado actual en el historial)
       window.history.replaceState(null, '', window.location.href);
-      
-      // 4. Forzar una recarga limpia del navegador. 
+
+      // 4. Forzar una recarga limpia del navegador.
       // Al arrancar de nuevo sin token, la app lanzará automáticamente el Modal de Autenticación.
       window.location.reload();
     };
@@ -721,7 +721,7 @@ createApp({
       const ctxTop = document.getElementById('topProjectsChart');
       if (ctxTop) {
         // const top5 = [...projects.value].sort((a, b) => (b.counts.CRITICAL*10 + b.counts.HIGH) - (a.counts.CRITICAL*10 + a.counts.HIGH)).slice(0, 5);
-		const top5 = [...projects.value].sort((a, b) => (a.security_score - b.security_score)).slice(0, 5);
+		    const top5 = [...projects.value].sort((a, b) => (a.security_score - b.security_score)).slice(0, 5);
         charts.top = new Chart(ctxTop, {
           type: 'bar',
           data: {
@@ -731,7 +731,7 @@ createApp({
               { label: 'Alta', data: top5.map(p => p.counts.HIGH), backgroundColor: '#ea580c' },
               { label: 'Media', data: top5.map(p => p.counts.MEDIUM), backgroundColor: '#d97706' },
               { label: 'Baja', data: top5.map(p => p.counts.LOW), backgroundColor: '#2563eb' },
-			  { label: 'Ignorada', data: top5.map(p => p.counts.IGNORED), backgroundColor: '#6b7280' }
+			        { label: 'Ignorada', data: top5.map(p => p.counts.IGNORED), backgroundColor: '#6b7280' }
             ]
           },
           options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
@@ -758,15 +758,34 @@ createApp({
         charts.trend = new Chart(ctxTrend, {
           type: 'line',
           data: {
-            labels: hist.map(h => h.date),
+            // Formatear la fecha para mostrar el día y la hora en el gráfico
+            // Formatear la fecha para mostrar día, hora, minuto y segundo
+            labels: hist.map(h => {
+              const d = new Date(h.date);
+              return isNaN(d.getTime())
+                ? h.date
+                : d.toLocaleString('es-ES', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  });
+            }),
             datasets: [
               { label: 'Crítica', data: hist.map(h => h.CRITICAL), borderColor: '#e11d48', tension: 0.3 },
               { label: 'Alta', data: hist.map(h => h.HIGH), borderColor: '#ea580c', tension: 0.3 },
-			  { label: 'Media', data: hist.map(h => h.MEDIUM), borderColor: '#d97706', tension: 0.3 },
-			  { label: 'Baja', data: hist.map(h => h.LOW), borderColor: '#2563eb', tension: 0.3 }
+              { label: 'Media', data: hist.map(h => h.MEDIUM), borderColor: '#d97706', tension: 0.3 },
+              { label: 'Baja', data: hist.map(h => h.LOW), borderColor: '#2563eb', tension: 0.3 }
             ]
           },
-          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { boxWidth: 10 } }
+            }
+          }
         });
       }
     };
@@ -818,16 +837,16 @@ createApp({
       // Calcular la URL absoluta dinámicamente basándose en dónde está cargado el frontend
       const origin = window.location.origin; // ej. https://192.168.1.50 o https://seguridad.local
       const ogImageUrl = `${origin}/sca/og-image.png`;
-      
+
       // Buscar o crear las etiquetas og:image y twitter:image para inyectarles la URL absoluta
       const setAbsoluteMeta = (propertyOrName, value) => {
-        let el = document.querySelector(`meta[property="${propertyOrName}"]`) || 
+        let el = document.querySelector(`meta[property="${propertyOrName}"]`) ||
     	         document.querySelector(`meta[name="${propertyOrName}"]`);
     	if (el) {
           el.setAttribute('content', value);
         }
       };
-    
+
       setAbsoluteMeta('og:image', ogImageUrl);
       setAbsoluteMeta('twitter:image', ogImageUrl);
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
