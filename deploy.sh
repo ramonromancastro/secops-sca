@@ -4,7 +4,7 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_VERSION="1.3.0"
+SCRIPT_VERSION="1.4.0"
 GITHUB_REPO="ramonromancastro/secops-sca"
 
 # Valores por defecto
