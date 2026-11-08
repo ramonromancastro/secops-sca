@@ -1,8 +1,9 @@
 # SecOps SCA Monitor - Enterprise Security Dashboard
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![GitHub Release](https://img.shields.io/github/v/release/ramonromancastro/secops-sca?include_prereleases&color=blue&sort=date)
+![Downloads](https://img.shields.io/github/downloads/ramonromancastro/secops-sca/total?color=brightgreen)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Python](https://img.shields.io/badge/Python-3.14%2B-blueviolet)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blueviolet)
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.x-4FC08D)
 
 **SecOps SCA Monitor** is a lightweight, high-performance Software Composition Analysis (SCA) platform. Designed for enterprise security teams, it provides continuous monitoring of third-party dependencies without the overhead of maintaining a database.
