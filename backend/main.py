@@ -47,7 +47,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 security_scheme = HTTPBearer(auto_error=False)
 
-async def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
+def verify_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
     settings = load_settings()
     api_token = settings.get("api_token", None)
 
@@ -69,7 +69,7 @@ async def verify_token(request: Request, credentials: HTTPAuthorizationCredentia
 
     return credentials.credentials
 
-async def verify_any_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
+def verify_any_token(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
     settings = load_settings()
 
     # Obtener ambos tokens permitidos desde settings.json
@@ -138,6 +138,46 @@ def calculate_score(counts: dict) -> tuple[int, str]:
     else: grade = "F"
     return score, grade
 
+async def _build_vulnerability(pkg: dict, v_stub: dict, client: httpx.AsyncClient, ignored_list: set[str]) -> dict | None:
+    osv_id = v_stub["id"]
+    detail_resp = await client.get(f"https://api.osv.dev/v1/vulns/{osv_id}")
+    if detail_resp.status_code != 200:
+        return None
+
+    v_data = detail_resp.json()
+    aliases = v_data.get("aliases", [])
+    cve_id = next((a for a in aliases if a.startswith("CVE-")), osv_id)
+    sev, score, vector = extract_severity(v_data)
+    fixed_ver = extract_fixed_version(v_data, pkg["name"])
+    refs = [r.get("url") for r in v_data.get("references", []) if r.get("url")][:4]
+    is_ignored = (cve_id in ignored_list) or (osv_id in ignored_list)
+
+    return {
+        "id": cve_id,
+        "osv_id": osv_id,
+        "package": pkg["name"],
+        "installed_version": pkg["version"],
+        "fixed_version": fixed_ver,
+        "severity": sev,
+        "cvss_score": score,
+        "cvss_vector": vector or "N/A",
+        "summary": v_data.get("summary", "Vulnerabilidad detectada en componente."),
+        "details": v_data.get("details", "Sin descripción adicional."),
+        "references": refs,
+        "ignored": is_ignored
+    }
+
+
+async def _collect_vulnerabilities(client: httpx.AsyncClient, packages: list[dict], batch_results: list[dict], ignored_list: set[str]) -> list[dict]:
+    vulnerabilities = []
+    for pkg, res in zip(packages, batch_results):
+        for v_stub in res.get("vulns", []):
+            vuln = await _build_vulnerability(pkg, v_stub, client, ignored_list)
+            if vuln is not None:
+                vulnerabilities.append(vuln)
+    return vulnerabilities
+
+
 async def scan_single_manifest(filepath: Path, settings: dict) -> dict:
     project, file_type, ecosystem = identify_manifest(filepath.name)
     content = filepath.read_bytes()
@@ -158,34 +198,7 @@ async def scan_single_manifest(filepath: Path, settings: dict) -> dict:
             batch_results = batch_resp.json().get("results", [])
 
             # 2. Hidratar detalles de vulnerabilidades detectadas
-            for pkg, res in zip(packages, batch_results):
-                for v_stub in res.get("vulns", []):
-                    osv_id = v_stub["id"]
-                    detail_resp = await client.get(f"https://api.osv.dev/v1/vulns/{osv_id}")
-                    if detail_resp.status_code != 200:
-                        continue
-                    v_data = detail_resp.json()
-                    aliases = v_data.get("aliases", [])
-                    cve_id = next((a for a in aliases if a.startswith("CVE-")), osv_id)
-                    sev, score, vector = extract_severity(v_data)
-                    fixed_ver = extract_fixed_version(v_data, pkg["name"])
-                    refs = [r.get("url") for r in v_data.get("references", []) if r.get("url")][:4]
-
-                    is_ignored = (cve_id in ignored_list) or (osv_id in ignored_list)
-                    vulnerabilities.append({
-                        "id": cve_id,
-                        "osv_id": osv_id,
-                        "package": pkg["name"],
-                        "installed_version": pkg["version"],
-                        "fixed_version": fixed_ver,
-                        "severity": sev,
-                        "cvss_score": score,
-                        "cvss_vector": vector or "N/A",
-                        "summary": v_data.get("summary", "Vulnerabilidad detectada en componente."),
-                        "details": v_data.get("details", "Sin descripción adicional."),
-                        "references": refs,
-                        "ignored": is_ignored
-                    })
+            vulnerabilities = await _collect_vulnerabilities(client, packages, batch_results, ignored_list)
 
     counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "IGNORED": 0}
     for v in vulnerabilities:
@@ -253,7 +266,11 @@ async def scan_all_projects():
     save_settings(settings)
     return {"status": "ok", "scanned_projects": len(results), "last_global_scan": now_iso}
 
-@app.post("/api/scan/{project}", dependencies=[Depends(verify_token)])
+@app.post(
+    "/api/scan/{project}",
+    dependencies=[Depends(verify_token)],
+    responses={404: {"description": "Manifiesto de proyecto no encontrado"}},
+)
 async def scan_project_endpoint(project: str):
     settings = load_settings()
     matches = list(MANIFESTS_DIR.glob(f"{project}_*"))
@@ -262,11 +279,16 @@ async def scan_project_endpoint(project: str):
     res = await scan_single_manifest(matches[0], settings)
     return res
 
-@app.post("/api/upload", dependencies=[Depends(verify_any_token)])
+@app.post(
+    "/api/upload",
+    dependencies=[Depends(verify_any_token)],
+    responses={400: {"description": "Tipo de archivo no válido o nombre de proyecto inválido"}},
+)
 async def upload_manifest(file: UploadFile = File(...), project_name: str = Form("")):
     orig_name = os.path.basename(file.filename)
     # Comprobar si ya cumple <proyecto>_<tipo>
     valid_direct = False
+    target_filename = None
     if "_" in orig_name:
         _, ftype = orig_name.rsplit("_", 1)
         if ftype.lower() in ECOSYSTEM_MAP:
@@ -284,6 +306,9 @@ async def upload_manifest(file: UploadFile = File(...), project_name: str = Form
             raise HTTPException(status_code=400, detail="Debe indicar un nombre de proyecto válido.")
         target_filename = f"{clean_proj}_{orig_name}"
 
+    if not target_filename:
+        raise HTTPException(status_code=400, detail="No se pudo determinar el nombre de archivo de destino.")
+
     dest_path = MANIFESTS_DIR / target_filename
     content = await file.read()
     dest_path.write_bytes(content)
@@ -292,7 +317,11 @@ async def upload_manifest(file: UploadFile = File(...), project_name: str = Form
     res = await scan_single_manifest(dest_path, settings)
     return res
 
-@app.delete("/api/projects/{project}", dependencies=[Depends(verify_token)])
+@app.delete(
+    "/api/projects/{project}",
+    dependencies=[Depends(verify_token)],
+    responses={404: {"description": "Proyecto no encontrado"}},
+)
 async def delete_project(project: str):
     deleted = False
     for m in MANIFESTS_DIR.glob(f"{project}_*"):
@@ -306,7 +335,11 @@ async def delete_project(project: str):
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return {"status": "deleted", "project": project}
 
-@app.post("/api/projects/{project}/ignore", dependencies=[Depends(verify_token)])
+@app.post(
+    "/api/projects/{project}/ignore",
+    dependencies=[Depends(verify_token)],
+    responses={404: {"description": "Resultado no encontrado"}},
+)
 async def toggle_ignore_vulnerability(project: str, vuln_id: str = Form(...)):
     settings = load_settings()
     ignored = set(settings.get("ignored_vulnerabilities", []))
