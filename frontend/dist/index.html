@@ -26,7 +26,7 @@
   <meta property="og:title" content="SecOps SCA Monitor | SecOps Enterprise Security" />
   <meta property="og:description" content="Gestión y monitorización centralizada de vulnerabilidades de dependencias (composer, gemfile, package-lock, requirements, pom.xml)." />
   <meta property="og:site_name" content="SecOps SCA Monitor" />
-  <meta property="og:image" content="DEPLOY_APP_BASE/og-image.png" />
+  <meta property="og:image" content="DEPLOY_ALIAS_PATH/og-image.png" />
   <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
@@ -35,7 +35,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="SecOps SCA Monitor | SecOps Enterprise Security" />
   <meta name="twitter:description" content="Gestión y monitorización centralizada de vulnerabilidades de dependencias (composer, gemfile, package-lock, requirements, pom.xml)." />
-  <meta name="twitter:image" content="DEPLOY_APP_BASE/og-image.png" />
+  <meta name="twitter:image" content="DEPLOY_ALIAS_PATH/og-image.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -786,7 +786,7 @@ createApp({
 
 	const fetchVersion = async () => {
 	  try {
-		const res = await apiFetch('DEPLOY_APP_BASE/api/version');
+		const res = await apiFetch('DEPLOY_ALIAS_PATH/api/version');
 		const data = await res.json();
         appVersion.value = data.version || 'N/A';
 	  } catch (err) {
@@ -803,7 +803,7 @@ createApp({
         ecosystem: projectEcosystemFilter.value,
         severity: projectSeverityFilter.value
       });
-      const res = await apiFetch(`DEPLOY_APP_BASE/api/projects?${params.toString()}`);
+      const res = await apiFetch(`DEPLOY_ALIAS_PATH/api/projects?${params.toString()}`);
       const data = await res.json();
       if (!res.ok || requestId !== inventoryRequestId.value) return;
       const lastPage = Math.max(1, Math.ceil((data.total || 0) / inventoryPageSize));
@@ -827,7 +827,7 @@ createApp({
         fix_status: vulnerabilityFixFilter.value,
         ecosystem: vulnerabilityEcosystemFilter.value
       });
-      const res = await apiFetch('DEPLOY_APP_BASE/api/vulnerabilities?' + params.toString());
+      const res = await apiFetch('DEPLOY_ALIAS_PATH/api/vulnerabilities?' + params.toString());
       const data = await res.json();
       if (!res.ok || requestId !== vulnerabilityRequestId.value) return;
       const lastPage = Math.max(1, Math.ceil((data.total || 0) / vulnerabilityPageSize));
@@ -841,13 +841,13 @@ createApp({
     };
 
     const fetchIntelligence = async () => {
-      const res = await apiFetch('DEPLOY_APP_BASE/api/intelligence');
+      const res = await apiFetch('DEPLOY_ALIAS_PATH/api/intelligence');
       const data = await res.json();
       if (res.ok) intelligence.value = data;
     };
 
     const fetchDashboard = async () => {
-      const res = await apiFetch('DEPLOY_APP_BASE/api/overview');
+      const res = await apiFetch('DEPLOY_ALIAS_PATH/api/overview');
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el resumen');
       overview.value = data;
@@ -860,7 +860,7 @@ createApp({
     };
 
     const fetchProjectDetails = async (project) => {
-      const res = await apiFetch(`DEPLOY_APP_BASE/api/projects/${encodeURIComponent(project)}`);
+      const res = await apiFetch(`DEPLOY_ALIAS_PATH/api/projects/${encodeURIComponent(project)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el proyecto');
       selectedProject.value = data;
@@ -870,7 +870,7 @@ createApp({
     const scanAll = async () => {
       scanning.value = true;
       try {
-        const response = await apiFetch('DEPLOY_APP_BASE/api/scan/all', { method: 'POST' });
+        const response = await apiFetch('DEPLOY_ALIAS_PATH/api/scan/all', { method: 'POST' });
         const scanResult = await response.json();
         await fetchDashboard();
         if (scanResult.status === 'partial') {
@@ -888,7 +888,7 @@ createApp({
     const rescanProject = async (projName) => {
       scanning.value = true;
       try {
-        const res = await apiFetch(`DEPLOY_APP_BASE/api/scan/${encodeURIComponent(projName)}`, { method: 'POST' });
+        const res = await apiFetch(`DEPLOY_ALIAS_PATH/api/scan/${encodeURIComponent(projName)}`, { method: 'POST' });
         const updated = await res.json();
         await fetchDashboard();
         if (selectedProject.value && selectedProject.value.project === projName) {
@@ -901,7 +901,7 @@ createApp({
 
     const confirmDelete = async (projName) => {
       if (!confirm(`¿Eliminar definitivamente el proyecto "${projName}" de /manifests y /results?`)) return;
-      await apiFetch(`DEPLOY_APP_BASE/api/projects/${encodeURIComponent(projName)}`, { method: 'DELETE' });
+      await apiFetch(`DEPLOY_ALIAS_PATH/api/projects/${encodeURIComponent(projName)}`, { method: 'DELETE' });
       await fetchDashboard();
     };
 
@@ -914,7 +914,7 @@ createApp({
         const fd = new FormData();
         fd.append('file', uploadFile.value);
         fd.append('project_name', uploadProjectName.value);
-        const res = await apiFetch('DEPLOY_APP_BASE/api/upload', { method: 'POST', body: fd });
+        const res = await apiFetch('DEPLOY_ALIAS_PATH/api/upload', { method: 'POST', body: fd });
         if (!res.ok) {
           const err = await res.json();
           alert(err.detail || 'Error al subir archivo');
@@ -932,7 +932,7 @@ createApp({
     const toggleIgnore = async (projName, vulnId) => {
       const fd = new FormData();
       fd.append('vuln_id', vulnId);
-      const res = await apiFetch(`DEPLOY_APP_BASE/api/projects/${encodeURIComponent(projName)}/ignore`, { method: 'POST', body: fd });
+      const res = await apiFetch(`DEPLOY_ALIAS_PATH/api/projects/${encodeURIComponent(projName)}/ignore`, { method: 'POST', body: fd });
       const updated = await res.json();
       if (selectedProject.value?.project === projName) selectedProject.value = updated;
       await fetchDashboard();
@@ -941,7 +941,7 @@ createApp({
     const restoreIgnoredGlobally = async (vulnId) => {
       const fd = new FormData();
       fd.append('vuln_id', vulnId);
-      await apiFetch('DEPLOY_APP_BASE/api/ignored-vulnerabilities/restore', { method: 'POST', body: fd });
+      await apiFetch('DEPLOY_ALIAS_PATH/api/ignored-vulnerabilities/restore', { method: 'POST', body: fd });
       await fetchDashboard();
     };
 
@@ -1130,7 +1130,7 @@ createApp({
         if (requestId !== routeLoadId) return;
         if (apiToken.value) {
           try {
-            const projectDetails = await apiFetch(`DEPLOY_APP_BASE/api/projects/${encodeURIComponent(decodeURIComponent(projectMatch[1]))}`);
+            const projectDetails = await apiFetch(`DEPLOY_ALIAS_PATH/api/projects/${encodeURIComponent(decodeURIComponent(projectMatch[1]))}`);
             const detailData = await projectDetails.json();
             if (requestId !== routeLoadId) return;
             if (!projectDetails.ok) throw new Error(detailData.detail || 'No se pudo cargar el proyecto');
