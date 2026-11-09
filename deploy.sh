@@ -4,7 +4,7 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_VERSION="1.4.4"
+SCRIPT_VERSION="1.4.5"
 GITHUB_REPO="ramonromancastro/secops-sca"
 
 # Color setup (ANSI escape codes)
@@ -230,24 +230,6 @@ fi
 # OS Detection & Dependency Installation
 # ------------------------------------------------------------------------------
 
-if ! id "$APP_USER" &>/dev/null; then
-    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
-    useradd \
-        --system \
-        --no-create-home \
-        --home-dir "$APP_DIR" \
-        --shell /usr/sbin/nologin \
-        --user-group \
-        "$APP_USER"
-else
-    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
-    CURRENT_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
-    if [[ "$CURRENT_HOME" != "$APP_DIR" ]]; then
-        echo -e "${C_CYAN}    -> Updating home directory to $APP_DIR${C_NC}"
-        usermod --home "$APP_DIR" "$APP_USER"
-    fi
-fi
-
 source /etc/os-release
 echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Operating system detected: ${C_GREEN}$PRETTY_NAME${C_NC}"
 
@@ -300,6 +282,61 @@ if [[ "$(printf '%s\n' "$MIN_PYTHON_VERSION" "$PY_VER" | sort -V | head -n1)" !=
     exit 1
 fi
 echo -e "${C_GREEN}    -> OK: Valid binary detected: $PYTHON_BIN (v$PY_VER)${C_NC}"
+
+# ------------------------------------------------------------------------------
+# Stop Backend Service Before Installation / Upgrade
+# ------------------------------------------------------------------------------
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking backend service status..."
+if systemctl is-active --quiet "$BACKEND_SERVICE"; then
+    echo -e "${C_YELLOW}    -> Backend service is running. Stopping it before deployment...${C_NC}"
+    systemctl stop "$BACKEND_SERVICE"
+    echo -e "${C_GREEN}    -> Backend service stopped successfully.${C_NC}"
+else
+    echo -e "${C_CYAN}    -> Backend service is not running. Nothing to stop.${C_NC}"
+fi
+
+# ------------------------------------------------------------------------------
+# Dedicated System User
+# ------------------------------------------------------------------------------
+
+if getent passwd "$APP_USER" >/dev/null; then
+    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
+    CURRENT_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+    if [[ "$CURRENT_HOME" != "$APP_DIR" ]]; then
+        echo -e "${C_CYAN}    -> Home directory needs updating: $CURRENT_HOME -> $APP_DIR${C_NC}"
+        # Check for running processes
+        if PROCESS_LIST="$(pgrep -a -u "$APP_USER" '.*')"; then
+            echo -e "${C_RED}${C_BOLD}Error:${C_NC} User $APP_USER has running processes." >&2
+            echo -e "${C_YELLOW}Active processes:${C_NC}" >&2
+            printf '%s\n' "$PROCESS_LIST" >&2
+            echo -e "${C_YELLOW}Stop these processes before continuing.${C_NC}" >&2
+            exit 1
+        else
+            PGREP_RC=$?
+            # Exit code 1 means no processes found.
+            # Other exit codes indicate an actual pgrep error.
+            if (( PGREP_RC != 1 )); then
+                echo -e "${C_RED}${C_BOLD}Error:${C_NC} Could not check running processes for $APP_USER (pgrep exit code: $PGREP_RC)." >&2
+                exit 1
+            fi
+        fi
+        # No processes found: safe to update account information
+        echo -e "${C_CYAN}    -> No running processes found. Updating HOME directory...${C_NC}"
+        usermod --home "$APP_DIR" "$APP_USER"
+    else
+        echo -e "${C_GREEN}    -> User configuration already correct.${C_NC}"
+    fi
+else
+    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
+    useradd \
+        --system \
+        --no-create-home \
+        --home-dir "$APP_DIR" \
+        --shell /usr/sbin/nologin \
+        --user-group \
+        "$APP_USER"
+fi
 
 # ------------------------------------------------------------------------------
 # Directory Creation
@@ -490,7 +527,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now ${BACKEND_SERVICE}
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Enabling and starting backend service..."
+systemctl enable --now "${BACKEND_SERVICE}"
 
 # ------------------------------------------------------------------------------
 # Apache HTTP Configuration
