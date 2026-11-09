@@ -4,7 +4,7 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_VERSION="1.4.2"
+SCRIPT_VERSION="1.4.4"
 GITHUB_REPO="ramonromancastro/secops-sca"
 
 # Color setup (ANSI escape codes)
