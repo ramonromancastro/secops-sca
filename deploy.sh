@@ -231,7 +231,7 @@ fi
 # ------------------------------------------------------------------------------
 if ! id "$APP_USER" &>/dev/null; then
     echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
-    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER" --group "$APP_GROUP" 2>/dev/null || true
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER" --user-group 2>/dev/null
 fi
 
 source /etc/os-release
@@ -316,9 +316,15 @@ if [[ -n "$DOWNLOAD_VERSION" ]]; then
     curl -L -s "$TAR_URL" -o "$TEMP_DIR/source.tar.gz"
 
     tar -xzf "$TEMP_DIR/source.tar.gz" -C "$TEMP_DIR" --exclude="source.tar.gz" --strip-components=1
-
+    rm -f -- "$TEMP_DIR/source.tar.gz"
+    
     echo -e "${C_CYAN}    -> Deploying files to $APP_DIR${C_NC}"
-    cp -r "$TEMP_DIR"/* "$APP_DIR/" 2>/dev/null || true
+
+    if ! cp -a -- "$TEMP_DIR/." "$APP_DIR/"; then
+        echo -e "${C_RED}${C_BOLD}Error:${C_NC} Failed to copy application files to $APP_DIR." >&2
+        rm -rf -- "$TEMP_DIR"
+        exit 1
+    fi
 
     rm -rf "$TEMP_DIR"
 fi
@@ -401,7 +407,22 @@ if [[ "$OS_FAMILY" == "rhel" ]]; then
     if command -v getenforce &>/dev/null && [[ "$(getenforce)" != "Disabled" ]]; then
         echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Configuring SELinux contexts..."
         setsebool -P httpd_can_network_connect 1
-        semanage fcontext -a -t httpd_sys_content_t "$APP_DIR/frontend/dist(/.*)?" || true
+        FC_PATTERN="$APP_DIR/frontend/dist(/.*)?"
+
+        # Retrieve existing local SELinux file context rules
+        if ! LOCAL_FCONTEXTS="$(semanage fcontext -l -C)"; then
+            echo -e "${C_RED}${C_BOLD}Error:${C_NC} Could not retrieve SELinux file context rules." >&2
+            exit 1
+        fi
+        # Check whether the exact rule already exists
+        if printf '%s\n' "$LOCAL_FCONTEXTS" | awk -v pattern="$FC_PATTERN" \
+            '$1 == pattern { found=1 } END { exit !found }'; then
+            echo -e "${C_CYAN}    -> Updating existing SELinux file context rule...${C_NC}"
+            semanage fcontext -m -t httpd_sys_content_t "$FC_PATTERN"
+        else
+            echo -e "${C_CYAN}    -> Creating SELinux file context rule...${C_NC}"
+            semanage fcontext -a -t httpd_sys_content_t "$FC_PATTERN"
+        fi
         restorecon -Rv "$APP_DIR" > /dev/null
     fi
     if systemctl is-active --quiet firewalld; then
@@ -501,12 +522,32 @@ Alias ${ALIAS_PATH} "$APP_DIR/frontend/dist"
 EOF
 
 if [[ "$OS_FAMILY" == "debian" ]]; then
-    a2dissite secops-sca.conf 2>/dev/null || true
-    a2enconf secops-sca.conf
+    echo -e "${C_CYAN}    -> Enabling Apache configuration...${C_NC}"
+    a2enconf secops-sca
 fi
 
-systemctl enable --now "$WEB_SERVICE"
-systemctl restart "$WEB_SERVICE"
+# ------------------------------------------------------------------------------
+# Apache Configuration Validation and Service Activation
+# ------------------------------------------------------------------------------
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Validating Apache configuration..."
+
+if [[ "$OS_FAMILY" == "debian" ]]; then
+    apache2ctl configtest
+else
+    httpd -t
+fi
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Enabling and starting Apache service..."
+systemctl enable "$WEB_SERVICE"
+
+if systemctl is-active --quiet "$WEB_SERVICE"; then
+    echo -e "${C_CYAN}    -> Apache is running. Reloading configuration...${C_NC}"
+    systemctl reload "$WEB_SERVICE"
+else
+    echo -e "${C_CYAN}    -> Apache is not running. Starting service...${C_NC}"
+    systemctl start "$WEB_SERVICE"
+fi
 
 # ------------------------------------------------------------------------------
 # Cron Job Configuration
