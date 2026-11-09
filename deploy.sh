@@ -229,9 +229,23 @@ fi
 # ------------------------------------------------------------------------------
 # OS Detection & Dependency Installation
 # ------------------------------------------------------------------------------
+
 if ! id "$APP_USER" &>/dev/null; then
     echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
-    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER" --user-group 2>/dev/null
+    useradd \
+        --system \
+        --no-create-home \
+        --home-dir "$APP_DIR" \
+        --shell /usr/sbin/nologin \
+        --user-group \
+        "$APP_USER"
+else
+    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
+    CURRENT_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+    if [[ "$CURRENT_HOME" != "$APP_DIR" ]]; then
+        echo -e "${C_CYAN}    -> Updating home directory to $APP_DIR${C_NC}"
+        usermod --home "$APP_DIR" "$APP_USER"
+    fi
 fi
 
 source /etc/os-release
