@@ -4,7 +4,7 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_VERSION="1.4.5"
+SCRIPT_VERSION="1.4.6"
 GITHUB_REPO="ramonromancastro/secops-sca"
 
 # Color setup (ANSI escape codes)
@@ -436,8 +436,7 @@ fi
 # ------------------------------------------------------------------------------
 if [[ -f "$APP_DIR/frontend/dist/index.html" ]]; then
     echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Adjusting API endpoints in index.html to use alias $ALIAS_PATH..."
-    sed -i "s|fetch('/api/|fetch('${ALIAS_PATH}/api/|g" "$APP_DIR/frontend/dist/index.html"
-    sed -i "s|fetch(\`/api/|fetch(\`${ALIAS_PATH}/api/|g" "$APP_DIR/frontend/dist/index.html"
+    sed -i "s|DEPLOY_ALIAS_PATH|${ALIAS_PATH}|g" "$APP_DIR/frontend/dist/index.html"
 fi
 
 # ------------------------------------------------------------------------------
