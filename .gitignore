@@ -6,6 +6,7 @@
 /manifests/
 /results/
 /config/settings.json
+/config/system_state.json
 
 # Entornos Virtuales y Python
 venv/

@@ -324,22 +324,42 @@ if [[ -n "$DOWNLOAD_VERSION" ]]; then
 fi
 
 # ------------------------------------------------------------------------------
-# Initialize Configuration (settings.json)
+# Initialize user configuration and system-managed state separately
 # ------------------------------------------------------------------------------
-if [[ ! -f "$APP_DIR/config/settings.json" ]]; then
+if [[ ! -f "$APP_DIR/config/settings.json" && ! -f "$APP_DIR/config/system_state.json" ]]; then
 cat <<EOF > "$APP_DIR/config/settings.json"
 {
   "cron_schedule": "0 */6 * * *",
-  "last_global_scan": null,
-  "ignored_vulnerabilities": [],
-  "scan_history": [],
   "scan_history_size": 15,
   "relative_url_root": "${ALIAS_PATH}",
-  "scan_batch_size": 10,
+  "scan_batch_size": 10
+}
+EOF
+    (
+        umask 077
+        cat <<EOF > "$APP_DIR/config/system_state.json"
+{
+  "last_global_scan": null,
+  "ignored_vulnerabilities_by_project": {},
+  "scan_history": [],
   "api_token": "$(openssl rand -base64 16)",
   "upload_token": "$(openssl rand -base64 16)"
 }
 EOF
+    )
+elif [[ ! -f "$APP_DIR/config/settings.json" ]]; then
+cat <<EOF > "$APP_DIR/config/settings.json"
+{
+  "cron_schedule": "0 */6 * * *",
+  "scan_history_size": 15,
+  "relative_url_root": "${ALIAS_PATH}",
+  "scan_batch_size": 10
+}
+EOF
+fi
+
+if [[ -f "$APP_DIR/config/system_state.json" ]]; then
+    chmod 600 "$APP_DIR/config/system_state.json"
 fi
 
 # ------------------------------------------------------------------------------

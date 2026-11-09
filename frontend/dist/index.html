@@ -57,8 +57,8 @@
 <div id="app" v-cloak class="flex flex-col min-h-screen">
 
   <!-- TOP NAVBAR -->
-  <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-6 py-3 flex items-center justify-between">
-    <div class="flex items-center gap-3 cursor-pointer" @click="selectedProject = null">
+  <header class="sticky top-0 z-30 border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur px-6 py-3 flex flex-wrap items-center justify-between gap-y-2">
+    <div class="flex items-center gap-3 cursor-pointer" @click="openDashboard">
 	  <div class="w-9 h-9 flex items-center justify-center text-white font-bold text-lg"><img src="./favicon.svg"></div>
       <div>
         <h1 class="font-bold text-base tracking-tight leading-none">SecOps SCA Monitor | SecOps Enterprise Security</h1>
@@ -66,7 +66,7 @@
       </div>
     </div>
 
-    <div class="flex items-center gap-3">
+    <div class="flex flex-wrap items-center justify-end gap-3">
       <!-- Cron Info -->
       <div class="hidden md:flex flex-col text-right text-xs mr-3">
         <span class="text-slate-400">Último escaneo global ({{ settings.cron_schedule || '0 */6 * * *' }})</span>
@@ -103,20 +103,27 @@
         <button @click="setTheme('system')" :class="themeMode==='system' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-white' : 'text-slate-500'" class="px-2.5 py-1 rounded-md transition">Auto</button>
       </div>
     </div>
+    <nav v-if="apiToken" aria-label="Navegación principal" class="basis-full flex flex-wrap items-center gap-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+      <button @click="navigateView('dashboard')" :aria-current="currentView === 'dashboard' || (currentView === 'details' && previousView === 'dashboard') ? 'page' : null" :class="currentView === 'dashboard' || (currentView === 'details' && previousView === 'dashboard') ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'" class="px-3.5 py-2 rounded-lg text-xs font-semibold">Dashboard Ejecutivo</button>
+      <button @click="navigateView('intelligence')" :aria-current="currentView === 'intelligence' ? 'page' : null" :class="currentView === 'intelligence' ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'" class="px-3.5 py-2 rounded-lg text-xs font-semibold">Centro de Inteligencia</button>
+      <button @click="navigateView('inventory')" :aria-current="currentView === 'inventory' || (currentView === 'details' && previousView === 'inventory') ? 'page' : null" :class="currentView === 'inventory' || (currentView === 'details' && previousView === 'inventory') ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'" class="px-3.5 py-2 rounded-lg text-xs font-semibold">Inventario de Activos</button>
+      <button @click="navigateView('vulnerabilities')" :aria-current="currentView === 'vulnerabilities' || (currentView === 'details' && previousView === 'vulnerabilities') ? 'page' : null" :class="currentView === 'vulnerabilities' || (currentView === 'details' && previousView === 'vulnerabilities') ? 'bg-indigo-600 text-white' : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700'" class="px-3.5 py-2 rounded-lg text-xs font-semibold">Inventario de Vulnerabilidades</button>
+      <span v-if="currentView === 'details'" class="ml-auto text-xs font-semibold text-indigo-600 dark:text-indigo-300">Detalles del Proyecto · {{ selectedProject?.project || '' }}</span>
+    </nav>
   </header>
 
   <!-- CONTENIDO PRINCIPAL -->
   <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
 
     <!-- ================= VISTA 1: EXECUTIVE DASHBOARD ================= -->
-    <div v-if="!selectedProject" class="space-y-6">
+    <div v-if="currentView === 'dashboard'" class="space-y-6">
 
       <!-- TARJETAS KPI -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
           <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Proyectos Monitorizados</p>
           <div class="mt-2 flex items-baseline justify-between">
-            <span class="text-3xl font-extrabold">{{ projects.length }}</span>
+            <span class="text-3xl font-extrabold">{{ overview.summary?.project_count || 0 }}</span>
             <span class="text-xs text-emerald-500 font-medium">Activos en /manifests</span>
           </div>
         </div>
@@ -129,26 +136,13 @@
           </div>
         </div>
 
-        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
-          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Vulnerabilidades Activas</p>
-          <div class="mt-2 flex items-baseline justify-between">
-            <span class="text-3xl font-extrabold text-rose-600 dark:text-rose-500">{{ totalVulns }}</span>
-            <div class="flex gap-1.5 text-xs font-bold">
-              <span class="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500">{{ globalCounts.CRITICAL }} C</span>
-              <span class="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500">{{ globalCounts.HIGH }} A</span>
-              <span class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500">{{ globalCounts.MEDIUM }} M</span>
-              <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500">{{ globalCounts.LOW }} B</span>
-			  <span class="px-1.5 py-0.5 rounded bg-gray-500/10 text-gray-500">{{ globalCounts.IGNORED }} I</span>
-            </div>
-          </div>
-        </div>
-
         <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div>
-            <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Security Score Global</p>
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Security Score Global</p>
             <div class="mt-2 flex items-baseline gap-2">
               <span class="text-3xl font-extrabold">{{ globalScore }}/100</span>
             </div>
+            <span class="text-[10px] text-slate-500">Media de los scores por proyecto</span>
           </div>
           <div :class="gradeBadgeClass(globalGrade)" class="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black shadow-inner">
             {{ globalGrade }}
@@ -156,31 +150,107 @@
         </div>
       </div>
 
-      <!-- SECCIÓN DE 4 GRÁFICAS INTERACTIVAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+
+        <div class="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-rose-300 dark:hover:border-rose-800 transition">
+          <button @click="openVulnerabilityInventory('active')" class="w-full text-left">
+            <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Advisories activos únicos</p>
+            <div class="mt-2 flex items-baseline justify-between">
+              <span class="text-3xl font-extrabold text-rose-600 dark:text-rose-500">{{ totalVulns }}</span>
+              <span class="text-[10px] text-slate-500">Abrir activas</span>
+            </div>
+          </button>
+          <div class="flex flex-wrap gap-1.5 mt-2 text-xs font-bold">
+            <button @click="openVulnerabilityInventory('active', 'all', 'CRITICAL')" class="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-500 hover:bg-rose-500/20">{{ globalCounts.CRITICAL }} C</button>
+            <button @click="openVulnerabilityInventory('active', 'all', 'HIGH')" class="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-500 hover:bg-orange-500/20">{{ globalCounts.HIGH }} A</button>
+            <button @click="openVulnerabilityInventory('active', 'all', 'MEDIUM')" class="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 hover:bg-amber-500/20">{{ globalCounts.MEDIUM }} M</button>
+            <button @click="openVulnerabilityInventory('active', 'all', 'LOW')" class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 hover:bg-blue-500/20">{{ globalCounts.LOW }} B</button>
+          </div>
+        </div>
+
+        <button @click="openVulnerabilityInventory('ignored')" class="p-5 rounded-xl text-left bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-amber-300 dark:hover:border-amber-800 transition">
+          <p class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Advisories ignorados</p>
+          <div class="mt-2 flex items-baseline justify-between"><span class="text-3xl font-extrabold text-slate-500">{{ overview.summary?.ignored_advisories || 0 }}</span><span class="text-xs font-semibold text-slate-500">únicos</span></div>
+          <span class="block text-[10px] text-slate-500 mt-2">Ignorados en al menos un proyecto; pueden seguir activos en otros</span>
+        </button>
+
+      </div>
+
+      <!-- Indicadores ejecutivos -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
           <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Severidad Global</h3>
           <div class="h-48"><canvas id="severityChart"></canvas></div>
         </div>
         <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Top Proyectos Vulnerables</h3>
-          <div class="h-48"><canvas id="topProjectsChart"></canvas></div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Acción inmediata</h3>
+          <p class="text-[11px] text-slate-500 mb-2">Exposiciones activas con versión corregida declarada en OSV frente a las que no la declaran. No equivale a detección de zero-day.</p>
+          <div class="h-40"><canvas id="quickWinsChart"></canvas></div>
+          <div class="mt-2 flex flex-wrap justify-between gap-2 text-xs"><button @click="openVulnerabilityInventory('active', 'available')" class="text-left hover:text-emerald-600">Con versión corregida: <strong>{{ overview.summary?.quick_wins?.fixed_version_declared || 0 }}</strong></button><button @click="openVulnerabilityInventory('active', 'not_declared')" class="text-left hover:text-indigo-500">Sin versión declarada: <strong>{{ overview.summary?.quick_wins?.fix_not_declared || 0 }}</strong></button></div>
         </div>
+      </div>
+      <div class="grid grid-cols-1 gap-4">
         <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Distribución por Ecosistema</h3>
-          <div class="h-48"><canvas id="ecosystemChart"></canvas></div>
-        </div>
-        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Histórico de Detección</h3>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Histórico de Seguridad</h3>
           <div class="h-48"><canvas id="trendChart"></canvas></div>
+          <p class="text-[10px] text-slate-500 mt-2">El score histórico se registra desde las nuevas ejecuciones; registros anteriores conservan sus conteos por severidad.</p>
         </div>
       </div>
 
-      <!-- TABLA DE PROYECTOS -->
+      <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h2 class="font-bold text-base">Top 5 proyectos en riesgo</h2>
+          <p class="text-xs text-slate-500 mt-1">Ordenados por score del proyecto y severidades activas.</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead><tr class="border-b border-slate-200 dark:border-slate-800 text-xs uppercase text-slate-400 bg-slate-50/50 dark:bg-slate-800/40"><th class="py-3 px-6">Proyecto / Archivo</th><th class="py-3 px-4">Ecosistema</th><th class="py-3 px-4">Dependencias</th><th class="py-3 px-4">Vulnerabilidades</th><th class="py-3 px-4">Salud</th><th class="py-3 px-4">Último Análisis</th><th class="py-3 px-6 text-right">Acciones</th></tr></thead>
+            <tbody class="divide-y divide-slate-200 dark:divide-slate-800">
+              <tr v-for="(p, index) in overview.top_projects || []" :key="p.project" class="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <td class="py-3.5 px-6"><div class="flex items-center gap-2"><span class="w-5 h-5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-300 flex items-center justify-center text-[10px] font-bold">{{ index + 1 }}</span><button class="font-bold text-indigo-600 dark:text-indigo-400 hover:underline" @click="openProject(p)">{{ p.project }}</button></div><div class="text-xs text-slate-400 font-mono">{{ p.filename }}</div><span v-if="p.scan_warnings?.length" class="mt-1 inline-block rounded bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" :title="p.scan_warnings.join(' ')">Cobertura parcial</span></td>
+                <td class="py-3.5 px-4"><span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800">{{ p.ecosystem }}</span></td>
+                <td class="py-3.5 px-4 font-semibold">{{ p.total_dependencies }}</td>
+                <td class="py-3.5 px-4"><div class="flex gap-1.5 text-xs font-bold"><span class="px-2 py-0.5 rounded bg-rose-600 text-white" title="Críticas">{{ p.counts.CRITICAL }}</span><span class="px-2 py-0.5 rounded bg-orange-500 text-white" title="Altas">{{ p.counts.HIGH }}</span><span class="px-2 py-0.5 rounded bg-amber-500 text-white" title="Medias">{{ p.counts.MEDIUM }}</span><span class="px-2 py-0.5 rounded bg-blue-600 text-white" title="Bajas">{{ p.counts.LOW }}</span><span class="px-2 py-0.5 rounded bg-gray-500 text-white" title="Ignoradas">{{ p.counts.IGNORED }}</span></div></td>
+                <td class="py-3.5 px-4"><span :class="gradeBadgeClass(p.grade)" class="px-2.5 py-1 rounded-lg text-xs font-extrabold">{{ p.grade }} ({{ p.security_score }}%)</span></td>
+                <td class="py-3.5 px-4 text-xs text-slate-500">{{ formatDate(p.scanned_at) }}</td>
+                <td class="py-3.5 px-6 text-right whitespace-nowrap"><button @click="openProject(p)" class="px-3 py-1 rounded bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-300 text-xs font-semibold hover:bg-indigo-100">Detalle</button> <button @click="rescanProject(p.project)" class="px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs hover:bg-slate-200" title="Re-escanear">↻</button> <button @click="confirmDelete(p.project)" class="px-2.5 py-1 rounded bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 text-xs hover:bg-rose-100" title="Eliminar">✕</button></td>
+              </tr>
+              <tr v-if="!(overview.top_projects || []).length"><td colspan="7" class="py-8 text-center text-slate-400">No hay proyectos con vulnerabilidades activas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVENTARIO DE ACTIVOS -->
+    <div v-if="currentView === 'inventory'" class="space-y-6">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div><h2 class="text-2xl font-extrabold">Inventario de Activos</h2><p class="text-sm text-slate-500 mt-1">Catálogo paginado de proyectos y manifiestos monitorizados.</p></div>
+        <span class="text-xs text-slate-500">{{ inventoryTotal }} proyectos</span>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="lg:col-span-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Distribución por ecosistema</h3>
+          <p class="text-[10px] text-slate-500 mb-2">Un proyecto con varios ecosistemas cuenta en cada uno.</p>
+          <div class="h-48"><canvas id="ecosystemChart"></canvas></div>
+          <div class="sr-only"><span v-for="item in overview.ecosystem_distribution || []" :key="item.ecosystem">{{ item.ecosystem }}: {{ item.projects }} proyectos</span></div>
+        </div>
+        <div class="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Resumen del catálogo</h3>
+          <p class="text-3xl font-extrabold">{{ overview.summary?.project_count || 0 }}</p><p class="text-xs text-slate-500">proyectos monitorizados</p>
+          <p class="text-2xl font-bold mt-4">{{ totalDependencies }}</p><p class="text-xs text-slate-500">dependencias inventariadas</p>
+        </div>
+      </div>
+
+      <!-- TABLA MAESTRA DE PROYECTOS -->
       <div class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
         <div class="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
-          <h2 class="font-bold text-base">Inventario de Proyectos & Manifiestos</h2>
-          <input v-model="projectSearch" type="text" placeholder="Filtrar proyecto o ecosistema..." class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <h2 class="font-bold text-base">Proyectos y manifiestos</h2>
+          <div class="flex flex-wrap gap-2">
+            <input v-model="projectSearch" type="search" placeholder="Buscar proyecto o archivo..." class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />
+            <select v-model="projectEcosystemFilter" class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="">Todos los ecosistemas</option><option v-for="eco in inventoryEcosystems" :key="eco" :value="eco">{{ eco }}</option></select>
+            <select v-model="projectSeverityFilter" class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="">Todas las severidades</option><option value="CRITICAL">Críticas</option><option value="HIGH">Altas</option><option value="MEDIUM">Medias</option><option value="LOW">Bajas</option><option value="IGNORED">Ignoradas</option></select>
+          </div>
         </div>
 
         <div class="overflow-x-auto">
@@ -201,6 +271,7 @@
                 <td class="py-3.5 px-6">
                   <div class="font-bold text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline" @click="openProject(p)">{{ p.project }}</div>
                   <div class="text-xs text-slate-400 font-mono">{{ p.filename }}</div>
+                  <span v-if="p.scan_warnings && p.scan_warnings.length" class="mt-1 inline-block rounded bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300" :title="p.scan_warnings.join(' ')">Cobertura parcial</span>
                 </td>
                 <td class="py-3.5 px-4">
                   <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800">{{ p.ecosystem }}</span>
@@ -231,18 +302,107 @@
             </tbody>
           </table>
         </div>
+        <div class="px-6 py-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+          <span class="text-slate-500">{{ inventoryTotal ? inventoryStart + 1 : 0 }}–{{ inventoryEnd }} de {{ inventoryTotal }}</span>
+          <div class="flex items-center gap-2"><button @click="changeInventoryPage(inventoryPage - 1)" :disabled="inventoryPage <= 1" class="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-40">Anterior</button><span>Página {{ inventoryPage }} / {{ inventoryPageCount }}</span><button @click="changeInventoryPage(inventoryPage + 1)" :disabled="inventoryPage >= inventoryPageCount" class="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-40">Siguiente</button></div>
+        </div>
       </div>
     </div>
 
-    <!-- ================= VISTA 2: DRILL-DOWN DETALLE DE PROYECTO ================= -->
-    <div v-else class="space-y-6">
+    <!-- CENTRO DE INTELIGENCIA -->
+    <div v-if="currentView === 'intelligence'" class="space-y-6">
+      <div><h2 class="text-2xl font-extrabold">Centro de Inteligencia</h2><p class="text-sm text-slate-500 mt-1">Priorización transversal por alcance, dependencia y antigüedad observada.</p></div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <section class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800"><h3 class="font-bold">Advisories con mayor alcance</h3><p class="text-xs text-slate-500 mt-1">Agrupados por identificador; proyectos afectados y exposiciones activas.</p></div>
+          <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-400"><tr><th class="px-5 py-3">Advisory</th><th class="px-3 py-3">Severidad</th><th class="px-3 py-3">Proyectos</th><th class="px-3 py-3">Paquetes</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-slate-800"><tr v-for="item in intelligence.top_advisories || []" :key="item.id"><td class="px-5 py-3"><a :href="'https://osv.dev/vulnerability/' + encodeURIComponent(item.osv_id || item.id)" target="_blank" rel="noopener noreferrer" class="font-mono font-bold text-indigo-600 dark:text-indigo-300 hover:underline">{{ item.id }}</a><p class="text-xs text-slate-500 mt-1">{{ item.summary }}</p><div class="flex flex-wrap gap-1 mt-2"><button v-for="project in item.project_names" :key="project" @click="openProject({ project })" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:text-indigo-500">{{ project }}</button></div></td><td class="px-3 py-3"><span :class="severityBadge(item.severity)" class="px-2 py-1 rounded text-[10px] font-bold">{{ item.severity }}</span></td><td class="px-3 py-3 font-semibold">{{ item.project_count }}</td><td class="px-3 py-3">{{ item.packages.length }}</td></tr><tr v-if="!(intelligence.top_advisories || []).length"><td colspan="4" class="px-5 py-8 text-center text-slate-500">Sin vulnerabilidades activas.</td></tr></tbody></table></div>
+        </section>
+        <section class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800"><h3 class="font-bold">Dependencias con más riesgo</h3><p class="text-xs text-slate-500 mt-1">Combinación exacta de ecosistema y nombre de paquete.</p></div>
+          <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-400"><tr><th class="px-5 py-3">Dependencia</th><th class="px-3 py-3">Severidad máxima</th><th class="px-3 py-3">Proyectos</th><th class="px-3 py-3">Advisories</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-slate-800"><tr v-for="item in intelligence.top_dependencies || []" :key="item.ecosystem + ':' + item.package"><td class="px-5 py-3"><strong class="font-mono">{{ item.package }}</strong><span class="block text-xs text-slate-500">{{ item.ecosystem }}</span><div class="flex flex-wrap gap-1 mt-2"><button v-for="project in item.project_names" :key="project" @click="openProject({ project })" class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 hover:text-indigo-500">{{ project }}</button></div></td><td class="px-3 py-3"><span :class="severityBadge(item.severity)" class="px-2 py-1 rounded text-[10px] font-bold">{{ item.severity }}</span></td><td class="px-3 py-3 font-semibold">{{ item.project_count }}</td><td class="px-3 py-3">{{ item.vulnerability_count }}</td></tr><tr v-if="!(intelligence.top_dependencies || []).length"><td colspan="4" class="px-5 py-8 text-center text-slate-500">Sin dependencias vulnerables activas.</td></tr></tbody></table></div>
+        </section>
+      </div>
+      <section class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-start justify-between gap-3"><div><h3 class="font-bold">Antigüedad y MTTR observado</h3><p class="text-xs text-slate-500 mt-1">La edad empieza en la primera observación registrada por esta versión. Los datos antiguos se muestran sin seguimiento.</p></div><div class="flex gap-3"><div class="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2"><span class="block text-[10px] uppercase text-slate-500">MTTR medio</span><strong>{{ intelligence.mttr?.mean_days === null || intelligence.mttr?.mean_days === undefined ? 'Pendiente' : intelligence.mttr.mean_days + ' días' }}</strong></div><div class="rounded-lg bg-slate-100 dark:bg-slate-800 px-3 py-2"><span class="block text-[10px] uppercase text-slate-500">Casos cerrados</span><strong>{{ intelligence.mttr?.resolved_sample_size || 0 }}</strong></div></div></div>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 p-5"><div v-for="bucket in agingBucketList" :key="bucket.key" class="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3"><span class="block text-[10px] text-slate-500">{{ bucket.label }}</span><strong class="text-lg">{{ intelligence.aging?.buckets?.[bucket.key] || 0 }}</strong><div class="mt-2 h-1.5 rounded bg-slate-200 dark:bg-slate-700"><div class="h-1.5 rounded bg-indigo-500" :style="{ width: agingWidth(bucket.key) + '%' }"></div></div></div></div>
+        <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="text-xs uppercase text-slate-400"><tr><th class="px-5 py-3">Proyecto</th><th class="px-3 py-3">Vulnerabilidad</th><th class="px-3 py-3">Paquete</th><th class="px-3 py-3">Severidad</th><th class="px-3 py-3">Antigüedad</th></tr></thead><tbody class="divide-y divide-slate-200 dark:divide-slate-800"><tr v-for="item in intelligence.aging?.findings || []" :key="item.project + ':' + item.id + ':' + item.package"><td class="px-5 py-3"><button @click="openProject({ project: item.project })" class="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">{{ item.project }}</button></td><td class="px-3 py-3 font-mono">{{ item.id }}</td><td class="px-3 py-3 font-mono">{{ item.package }}</td><td class="px-3 py-3"><span :class="severityBadge(item.severity)" class="px-2 py-1 rounded text-[10px] font-bold">{{ item.severity }}</span></td><td class="px-3 py-3">{{ item.age_days === null ? 'Sin seguimiento' : item.age_days + ' días' }}</td></tr><tr v-if="!(intelligence.aging?.findings || []).length"><td colspan="5" class="px-5 py-8 text-center text-slate-500">No hay vulnerabilidades abiertas.</td></tr></tbody></table></div>
+        <p v-if="!intelligence.mttr?.resolved_sample_size" class="px-5 py-3 text-xs text-slate-500 border-t border-slate-200 dark:border-slate-800">El MTTR se calculará cuando el sistema observe vulnerabilidades abiertas que después desaparezcan en un escaneo completo.</p>
+      </section>
+    </div>
+
+    <!-- INVENTARIO TRANSVERSAL DE VULNERABILIDADES -->
+    <div v-if="currentView === 'vulnerabilities' && !selectedProject" class="space-y-6">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div><h2 class="text-2xl font-extrabold">Inventario de Vulnerabilidades</h2><p class="text-sm text-slate-500 mt-1">Advisories agrupados por ecosistema, identificador y dependencia, con su estado por proyecto.</p></div>
+        <span class="text-xs text-slate-500">{{ vulnerabilityInventoryTotal }} vulnerabilidades</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+        <input v-model="vulnerabilitySearch" type="search" placeholder="Buscar paquete, CVE o proyecto..." class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />
+        <select v-model="vulnerabilitySeverityFilter" class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="">Todas las severidades</option><option value="CRITICAL">Críticas</option><option value="HIGH">Altas</option><option value="MEDIUM">Medias</option><option value="LOW">Bajas</option></select>
+        <select v-model="vulnerabilityStatusFilter" class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="all">Activas e ignoradas</option><option value="active">Activas en algún proyecto</option><option value="ignored">Ignoradas en algún proyecto</option></select>
+        <select v-model="vulnerabilityFixFilter" class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="all">Con o sin corrección</option><option value="available">Versión corregida declarada</option><option value="not_declared">Sin versión corregida</option></select>
+        <select v-model="vulnerabilityEcosystemFilter" class="px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"><option value="">Todos los ecosistemas</option><option v-for="eco in vulnerabilityEcosystems" :key="eco" :value="eco">{{ eco }}</option></select>
+      </div>
+
+      <div v-if="vulnerabilityInventory.length" class="space-y-3">
+        <article v-for="v in vulnerabilityInventory" :key="v.group_key" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden transition">
+          <div class="p-4 flex flex-wrap items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800/40" @click="toggleExpand(v.group_key)">
+            <div class="flex items-center gap-3 min-w-0">
+              <span :class="severityBadge(v.severity)" class="px-2.5 py-1 rounded text-xs font-extrabold uppercase tracking-wider whitespace-nowrap">{{ v.severity }} · {{ v.cvss_score ?? 'CVSS N/D' }}</span>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-bold font-mono text-sm">{{ v.package }}</span>
+                  <span class="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono" :title="'Versiones instaladas: ' + v.installed_versions.join(', ')">{{ v.installed_versions.length === 1 ? 'v' + v.installed_versions[0] : v.installed_versions.length ? v.installed_versions.length + ' versiones' : 'Versión N/D' }}</span>
+                  <span :class="v.fix_status === 'available' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' : 'text-slate-500 bg-slate-500/10'" class="text-xs font-semibold px-2 py-0.5 rounded" :title="'Versiones corregidas: ' + v.fixed_versions.join(', ')">Fix: {{ v.fixed_version_label }}</span>
+                  <span class="text-xs font-semibold text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded">{{ v.project_count }} {{ v.project_count === 1 ? 'proyecto' : 'proyectos' }}</span>
+                  <span v-if="v.active_project_count" class="text-xs font-semibold text-rose-600 dark:text-rose-300 bg-rose-500/10 px-2 py-0.5 rounded">{{ v.active_project_count }} activos</span>
+                  <span v-if="v.ignored_project_count" class="text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-500/10 px-2 py-0.5 rounded">{{ v.ignored_project_count }} ignorados</span>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">{{ v.summary }}</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-3" @click.stop>
+              <a :href="'https://osv.dev/vulnerability/' + encodeURIComponent(v.osv_id || v.id)" target="_blank" rel="noopener noreferrer" class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{{ v.id || v.osv_id }} ↗</a>
+              <button v-if="v.ignored_project_count" @click="restoreIgnoredGlobally(v.id || v.osv_id)" class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">Restaurar globalmente</button>
+            </div>
+          </div>
+
+          <div v-if="expandedVuln === v.group_key" class="px-6 py-4 bg-slate-50 dark:bg-slate-950/70 border-t border-slate-200 dark:border-slate-800 text-xs space-y-3">
+            <div class="space-y-2">
+              <strong class="text-slate-400">Estado y acciones por proyecto:</strong>
+              <div v-for="projectName in v.project_names" :key="projectName" class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2">
+                <div class="flex items-center gap-2"><button @click.stop="openProject({ project: projectName })" class="font-semibold text-indigo-600 dark:text-indigo-300 hover:underline">{{ projectName }}</button><span :class="v.ignored_project_names.includes(projectName) ? 'text-slate-500 bg-slate-500/10' : 'text-rose-600 dark:text-rose-300 bg-rose-500/10'" class="px-2 py-0.5 rounded text-[10px] font-bold">{{ v.ignored_project_names.includes(projectName) ? 'IGNORADA' : 'ACTIVA' }}</span></div>
+                <button @click.stop="toggleIgnore(projectName, v.id || v.osv_id)" class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">{{ v.ignored_project_names.includes(projectName) ? 'Restaurar en este proyecto' : 'Ignorar en este proyecto' }}</button>
+              </div>
+            </div>
+            <div><strong class="text-slate-400">Vector CVSS:</strong> <code class="font-mono">{{ v.cvss_vector || 'N/D' }}</code></div>
+            <div><strong class="text-slate-400">Descripción Técnica:</strong> <p class="mt-1 whitespace-pre-line text-slate-600 dark:text-slate-300 leading-relaxed">{{ v.details || v.summary || 'Sin descripción disponible.' }}</p></div>
+            <div v-if="v.references && v.references.length"><strong class="text-slate-400">Referencias:</strong><ul class="list-disc list-inside mt-1 space-y-0.5"><li v-for="ref in v.references" :key="ref"><a :href="safeExternalUrl(ref)" target="_blank" rel="noopener noreferrer" class="text-indigo-500 hover:underline">{{ ref }}</a></li></ul></div>
+          </div>
+        </article>
+      </div>
+      <div v-else class="py-12 text-center rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500">No hay vulnerabilidades que coincidan con los filtros seleccionados.</div>
+
+      <div class="px-2 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <span class="text-slate-500">{{ vulnerabilityInventoryTotal ? vulnerabilityInventoryStart + 1 : 0 }}–{{ vulnerabilityInventoryEnd }} de {{ vulnerabilityInventoryTotal }}</span>
+        <div class="flex items-center gap-2"><button @click="changeVulnerabilityPage(vulnerabilityPage - 1)" :disabled="vulnerabilityPage <= 1" class="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-40">Anterior</button><span>Página {{ vulnerabilityPage }} / {{ vulnerabilityPageCount }}</span><button @click="changeVulnerabilityPage(vulnerabilityPage + 1)" :disabled="vulnerabilityPage >= vulnerabilityPageCount" class="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 disabled:opacity-40">Siguiente</button></div>
+      </div>
+    </div>
+
+    <!-- ================= VISTA 3: DRILL-DOWN DETALLE DE PROYECTO ================= -->
+    <div v-if="currentView === 'details' && selectedProject" class="space-y-6">
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <div class="col-span-1 lg:col-span-3">
           <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800">
             <div>
-              <button @click="selectedProject = null" class="text-xs text-indigo-500 hover:underline mb-1 flex items-center gap-1">← Volver al Panel Ejecutivo</button>
+              <button @click="goBackToPreviousView" class="text-xs text-indigo-500 hover:underline mb-1 flex items-center gap-1">← Volver al listado</button>
               <div class="flex items-center gap-3">
                 <h2 class="text-2xl font-extrabold">{{ selectedProject.project }}</h2>
+              </div>
+              <div v-if="selectedProject.scan_warnings && selectedProject.scan_warnings.length" class="mt-3 rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs text-amber-800 dark:text-amber-200">
+                <strong>Cobertura del análisis</strong>
+                <ul class="list-disc list-inside mt-1"><li v-for="warning in selectedProject.scan_warnings" :key="warning">{{ warning }}</li></ul>
               </div>
               <p class="text-xs text-slate-400 font-mono mt-1">Archivo origen: {{ selectedProject.filename }}<br>Ecosistema: {{ selectedProject.ecosystem }} ({{ selectedProject.file_type }})<br>Dependencias: {{ selectedProject.total_dependencies }}<br>Último escaneo: {{ formatDate(selectedProject.scanned_at) }}</p>
             </div>
@@ -271,22 +431,22 @@
       <!-- FILTROS DE VULNERABILIDADES -->
       <div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4">
         <div class="flex flex-wrap items-center gap-2">
-          <button @click="vulnSeverityFilter = 'ALL'" :class="vulnSeverityFilter==='ALL' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Todas ({{ selectedProject.vulnerabilities.length }})</button>
-          <button @click="vulnSeverityFilter = 'CRITICAL'" :class="vulnSeverityFilter==='CRITICAL' ? 'bg-rose-600 text-white' : 'bg-rose-500/10 text-rose-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Críticas</button>
-          <button @click="vulnSeverityFilter = 'HIGH'" :class="vulnSeverityFilter==='HIGH' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Altas</button>
-          <button @click="vulnSeverityFilter = 'MEDIUM'" :class="vulnSeverityFilter==='MEDIUM' ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Medias</button>
-          <button @click="vulnSeverityFilter = 'LOW'" :class="vulnSeverityFilter==='LOW' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Bajas</button>
+          <button @click="vulnSeverityFilter = 'ALL'" :class="vulnSeverityFilter==='ALL' ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900' : 'bg-slate-100 dark:bg-slate-800'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Todas ({{ projectSeverityCounts.CRITICAL + projectSeverityCounts.HIGH + projectSeverityCounts.MEDIUM + projectSeverityCounts.LOW }})</button>
+          <button @click="vulnSeverityFilter = 'CRITICAL'" :class="vulnSeverityFilter==='CRITICAL' ? 'bg-rose-600 text-white' : 'bg-rose-500/10 text-rose-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Críticas ({{ projectSeverityCounts.CRITICAL }})</button>
+          <button @click="vulnSeverityFilter = 'HIGH'" :class="vulnSeverityFilter==='HIGH' ? 'bg-orange-500 text-white' : 'bg-orange-500/10 text-orange-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Altas ({{ projectSeverityCounts.HIGH }})</button>
+          <button @click="vulnSeverityFilter = 'MEDIUM'" :class="vulnSeverityFilter==='MEDIUM' ? 'bg-amber-500 text-white' : 'bg-amber-500/10 text-amber-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Medias ({{ projectSeverityCounts.MEDIUM }})</button>
+          <button @click="vulnSeverityFilter = 'LOW'" :class="vulnSeverityFilter==='LOW' ? 'bg-blue-600 text-white' : 'bg-blue-500/10 text-blue-500'" class="px-3 py-1.5 rounded-lg text-xs font-bold">Bajas ({{ projectSeverityCounts.LOW }})</button>
         </div>
-        <input v-model="vulnSearch" type="text" placeholder="Buscar por paquete o CVE..." class="px-3.5 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 w-full sm:w-72" />
+        <input v-model="vulnSearch" type="search" placeholder="Buscar paquete, advisory, versión o texto..." class="px-3.5 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 w-full sm:w-72" />
       </div>
 
       <!-- LISTADO DE VULNERABILIDADES CON ACORDEÓN -->
-      <div class="space-y-3">
-        <div v-for="v in filteredVulns" :key="v.osv_id + v.package" :class="v.ignored ? 'opacity-50' : ''" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden transition">
-          <div class="p-4 flex flex-wrap items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800/40" @click="toggleExpand(v.osv_id + v.package)">
+      <div v-if="filteredVulns.length" class="space-y-3">
+        <div v-for="v in filteredVulns" :key="vulnerabilityKey(v)" :class="v.ignored ? 'opacity-50' : ''" class="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden transition">
+          <div class="p-4 flex flex-wrap items-center justify-between gap-4 cursor-pointer hover:bg-slate-50/60 dark:hover:bg-slate-800/40" @click="toggleExpand(vulnerabilityKey(v))">
             <div class="flex items-center gap-3">
               <span :class="severityBadge(v.severity)" class="px-2.5 py-1 rounded text-xs font-extrabold uppercase tracking-wider">
-                {{ v.severity }} · {{ v.cvss_score }}
+                {{ v.severity }} · {{ v.cvss_score ?? 'CVSS N/D' }}
               </span>
               <div>
                 <div class="flex items-center gap-2">
@@ -299,7 +459,7 @@
             </div>
 
             <div class="flex items-center gap-3" @click.stop>
-              <a :href="'https://osv.dev/vulnerability/' + v.osv_id" target="_blank" class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{{ v.id }} ↗</a>
+              <a :href="'https://osv.dev/vulnerability/' + encodeURIComponent(v.osv_id)" target="_blank" rel="noopener noreferrer" class="text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline">{{ v.id }} ↗</a>
               <button @click="toggleIgnore(selectedProject.project, v.id)" class="px-2.5 py-1 rounded text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
                 {{ v.ignored ? 'Restaurar Riesgo' : 'Aceptar Riesgo / Ignorar' }}
               </button>
@@ -307,18 +467,19 @@
           </div>
 
           <!-- Detalle Técnico Desplegable -->
-          <div v-if="expandedVuln === (v.osv_id + v.package)" class="px-6 py-4 bg-slate-50 dark:bg-slate-950/70 border-t border-slate-200 dark:border-slate-800 text-xs space-y-2">
+          <div v-if="expandedVuln === vulnerabilityKey(v)" class="px-6 py-4 bg-slate-50 dark:bg-slate-950/70 border-t border-slate-200 dark:border-slate-800 text-xs space-y-2">
             <div><strong class="text-slate-400">Vector CVSS:</strong> <code class="font-mono">{{ v.cvss_vector }}</code></div>
             <div><strong class="text-slate-400">Descripción Técnica:</strong> <p class="mt-1 whitespace-pre-line text-slate-600 dark:text-slate-300 leading-relaxed">{{ v.details }}</p></div>
             <div v-if="v.references && v.references.length">
               <strong class="text-slate-400">Referencias:</strong>
               <ul class="list-disc list-inside mt-1 space-y-0.5">
-                <li v-for="ref in v.references" :key="ref"><a :href="ref" target="_blank" class="text-indigo-500 hover:underline">{{ ref }}</a></li>
+                <li v-for="ref in v.references" :key="ref"><a :href="safeExternalUrl(ref)" target="_blank" rel="noopener noreferrer" class="text-indigo-500 hover:underline">{{ ref }}</a></li>
               </ul>
             </div>
           </div>
         </div>
       </div>
+      <div v-else class="py-12 text-center rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500">No hay vulnerabilidades que coincidan con la búsqueda y severidad seleccionadas.</div>
     </div>
 
   </main>
@@ -340,9 +501,9 @@
 
       <!-- Derecha: Enlaces Legales/Soporte y Versión -->
       <div class="flex items-center gap-3.5">
-        <a href="/sca/docs" target="_blank" class="hover:text-slate-800 dark:hover:text-slate-200 transition">Documentación API</a>
+        <a href="/sca/docs" target="_blank" rel="noopener noreferrer" class="hover:text-slate-800 dark:hover:text-slate-200 transition">Documentación API</a>
         <span class="text-slate-300 dark:text-slate-700">&bull;</span>
-        <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" class="hover:text-slate-800 dark:hover:text-slate-200 transition">GitHub</a>
+        <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" rel="noopener noreferrer" class="hover:text-slate-800 dark:hover:text-slate-200 transition">GitHub</a>
         <span class="text-slate-300 dark:text-slate-700">&bull;</span>
         <a href="#" @click.prevent="showAboutModal = true" class="hover:text-slate-800 dark:hover:text-slate-200 transition">Acerca de</a>
         <span class="text-slate-300 dark:text-slate-700">&bull;</span>
@@ -395,11 +556,11 @@
               <span class="text-xs text-slate-400 font-mono">{{ appVersion }}</span>
               <span class="text-slate-300 dark:text-slate-700">&bull;</span>
               <!-- ENLACES RÁPIDOS (DOCUMENTACIÓN / GITHUB) -->
-              <a href="/docs" target="_blank" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
+              <a href="/docs" target="_blank" rel="noopener noreferrer" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
                 Docs &nearr;
               </a>
               <span class="text-slate-300 dark:text-slate-700">&bull;</span>
-              <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
+              <a href="https://github.com/ramonromancastro/secops-sca" target="_blank" rel="noopener noreferrer" class="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5 font-medium">
                 GitHub &nearr;
               </a>
             </div>
@@ -483,7 +644,7 @@
       </div>
 
       <div class="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
-        <span class="text-[11px] text-slate-400">Se guardará de forma segura en tu navegador.</span>
+        <span class="text-[11px] text-slate-400">Se conservará durante esta sesión del navegador.</span>
         <button
           @click="saveToken"
           :disabled="!tempApiToken.trim()"
@@ -503,16 +664,39 @@ const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 createApp({
   setup() {
     const projects = ref([]);
+    const currentView = ref('dashboard');
+    const previousView = ref('dashboard');
+    const previousRoute = ref('#/dashboard');
     const settings = ref({});
+    const overview = ref({ summary: { counts: {}, quick_wins: {} }, top_projects: [], ecosystem_distribution: [] });
+    const intelligence = ref({ top_advisories: [], top_dependencies: [], aging: { buckets: {}, findings: [] }, mttr: {} });
+    const inventoryTotal = ref(0);
+    const inventoryPage = ref(1);
+    const inventoryPageSize = 25;
+    const inventoryEcosystems = ref([]);
+    const projectEcosystemFilter = ref('');
+    const projectSeverityFilter = ref('');
+    const inventoryRequestId = ref(0);
     const selectedProject = ref(null);
     const scanning = ref(false);
     const projectSearch = ref('');
     const vulnSearch = ref('');
     const vulnSeverityFilter = ref('ALL');
     const expandedVuln = ref(null);
+    const vulnerabilityInventory = ref([]);
+    const vulnerabilityInventoryTotal = ref(0);
+    const vulnerabilityPage = ref(1);
+    const vulnerabilityPageSize = 25;
+    const vulnerabilityEcosystems = ref([]);
+    const vulnerabilitySearch = ref('');
+    const vulnerabilitySeverityFilter = ref('');
+    const vulnerabilityStatusFilter = ref('all');
+    const vulnerabilityFixFilter = ref('all');
+    const vulnerabilityEcosystemFilter = ref('');
+    const vulnerabilityRequestId = ref(0);
     const appVersion = ref('N/A');
     const tempApiToken = ref('');
-    const apiToken = ref(localStorage.getItem('api_token') || '');
+    const apiToken = ref(sessionStorage.getItem('api_token') || '');
 
     const showUploadModal = ref(false);
     const showAboutModal = ref(false);
@@ -520,8 +704,18 @@ createApp({
     const uploadFile = ref(null);
     const uploadProjectName = ref('');
     const themeMode = ref(localStorage.getItem('theme') || 'system');
+    const agingBucketList = [
+      { key: '0_7_days', label: '0–7 días' },
+      { key: '8_30_days', label: '8–30 días' },
+      { key: '31_90_days', label: '31–90 días' },
+      { key: 'over_90_days', label: 'Más de 90 días' },
+      { key: 'not_yet_tracked', label: 'Sin seguimiento' }
+    ];
 
     let charts = {};
+    let inventorySearchTimer = null;
+    let vulnerabilitySearchTimer = null;
+    let routeLoadId = 0;
 
 	const apiFetch = async (endpoint, options = {}) => {
       options.headers = options.headers || {};
@@ -549,21 +743,26 @@ createApp({
     const saveToken = () => {
       if (!tempApiToken.value.trim()) return;
       apiToken.value = tempApiToken.value.trim();
-      localStorage.setItem('api_token', apiToken.value);
+      sessionStorage.setItem('api_token', apiToken.value);
       showAuthModal.value = false;
       tempApiToken.value = '';
-      // Recargar datos del dashboard con el nuevo token
-      fetchDashboard();
+      // Cargar la vista solicitada una vez validado el token.
+      syncRouteFromHash();
     };
 
 	const logout = () => {
       // 1. Eliminar token de persistencia y de la variable reactiva
-      localStorage.removeItem('api_token');
+      sessionStorage.removeItem('api_token');
       apiToken.value = '';
 
       // 2. Destruir los datos sensibles en memoria instantáneamente
       projects.value = [];
+      overview.value = { summary: { counts: {}, quick_wins: {} }, top_projects: [], ecosystem_distribution: [] };
+      intelligence.value = { top_advisories: [], top_dependencies: [], aging: { buckets: {}, findings: [] }, mttr: {} };
+      vulnerabilityInventory.value = [];
+      vulnerabilityInventoryTotal.value = 0;
       selectedProject.value = null;
+      currentView.value = 'dashboard';
       settings.value = {};
 
       // 3. Prevenir navegación hacia atrás (reemplaza el estado actual en el historial)
@@ -595,32 +794,91 @@ createApp({
 	  }
 	};
 
-    const fetchDashboard = async () => {
-      const res = await apiFetch('/sca/api/dashboard');
+    const fetchInventory = async () => {
+      const requestId = ++inventoryRequestId.value;
+      const params = new URLSearchParams({
+        page: String(inventoryPage.value),
+        page_size: String(inventoryPageSize),
+        search: projectSearch.value.trim(),
+        ecosystem: projectEcosystemFilter.value,
+        severity: projectSeverityFilter.value
+      });
+      const res = await apiFetch(`/sca/api/projects?${params.toString()}`);
       const data = await res.json();
-      projects.value = data.projects || [];
-      settings.value = data.settings || {};
-      if (!selectedProject.value) {
-        await nextTick();
-        renderCharts();
+      if (!res.ok || requestId !== inventoryRequestId.value) return;
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / inventoryPageSize));
+      if (inventoryPage.value > lastPage) {
+        inventoryPage.value = lastPage;
+        return fetchInventory();
       }
+      projects.value = data.projects || [];
+      inventoryTotal.value = data.total || 0;
+      inventoryEcosystems.value = data.ecosystems || [];
+    };
+
+    const fetchVulnerabilityInventory = async () => {
+      const requestId = ++vulnerabilityRequestId.value;
+      const params = new URLSearchParams({
+        page: String(vulnerabilityPage.value),
+        page_size: String(vulnerabilityPageSize),
+        search: vulnerabilitySearch.value.trim(),
+        severity: vulnerabilitySeverityFilter.value,
+        status_filter: vulnerabilityStatusFilter.value,
+        fix_status: vulnerabilityFixFilter.value,
+        ecosystem: vulnerabilityEcosystemFilter.value
+      });
+      const res = await apiFetch('/sca/api/vulnerabilities?' + params.toString());
+      const data = await res.json();
+      if (!res.ok || requestId !== vulnerabilityRequestId.value) return;
+      const lastPage = Math.max(1, Math.ceil((data.total || 0) / vulnerabilityPageSize));
+      if (vulnerabilityPage.value > lastPage) {
+        vulnerabilityPage.value = lastPage;
+        return fetchVulnerabilityInventory();
+      }
+      vulnerabilityInventory.value = data.vulnerabilities || [];
+      vulnerabilityInventoryTotal.value = data.total || 0;
+      vulnerabilityEcosystems.value = data.ecosystems || [];
+    };
+
+    const fetchIntelligence = async () => {
+      const res = await apiFetch('/sca/api/intelligence');
+      const data = await res.json();
+      if (res.ok) intelligence.value = data;
+    };
+
+    const fetchDashboard = async () => {
+      const res = await apiFetch('/sca/api/overview');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el resumen');
+      overview.value = data;
+      settings.value = data.settings || {};
+      if (currentView.value === 'inventory') await fetchInventory();
+      if (currentView.value === 'vulnerabilities') await fetchVulnerabilityInventory();
+      if (currentView.value === 'intelligence') await fetchIntelligence();
+      await nextTick();
+      if (currentView.value === 'dashboard' || currentView.value === 'inventory') renderCharts();
+    };
+
+    const fetchProjectDetails = async (project) => {
+      const res = await apiFetch(`/sca/api/projects/${encodeURIComponent(project)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'No se pudo cargar el proyecto');
+      selectedProject.value = data;
+      return data;
     };
 
     const scanAll = async () => {
       scanning.value = true;
       try {
-        await apiFetch('/sca/api/scan/all', { method: 'POST' });
+        const response = await apiFetch('/sca/api/scan/all', { method: 'POST' });
+        const scanResult = await response.json();
         await fetchDashboard();
+        if (scanResult.status === 'partial') {
+          const failed = (scanResult.failed_manifests || []).map(item => item.manifest).join(', ');
+          alert(`Escaneo parcial: ${scanResult.failed_manifests?.length || 0} manifiesto(s) fallaron.${failed ? `\n${failed}` : ''}`);
+        }
         if (selectedProject.value) {
-          const updatedProject = projects.value.find(
-            p => p.project === selectedProject.value.project
-          );
-
-          if (updatedProject) {
-            openProject(updatedProject);
-          } else {
-            selectedProject.value = null;
-          }
+          await fetchProjectDetails(selectedProject.value.project);
         }
       } finally {
         scanning.value = false;
@@ -630,7 +888,7 @@ createApp({
     const rescanProject = async (projName) => {
       scanning.value = true;
       try {
-        const res = await apiFetch(`/sca/api/scan/${projName}`, { method: 'POST' });
+        const res = await apiFetch(`/sca/api/scan/${encodeURIComponent(projName)}`, { method: 'POST' });
         const updated = await res.json();
         await fetchDashboard();
         if (selectedProject.value && selectedProject.value.project === projName) {
@@ -643,7 +901,7 @@ createApp({
 
     const confirmDelete = async (projName) => {
       if (!confirm(`¿Eliminar definitivamente el proyecto "${projName}" de /manifests y /results?`)) return;
-      await apiFetch(`/sca/api/projects/${projName}`, { method: 'DELETE' });
+      await apiFetch(`/sca/api/projects/${encodeURIComponent(projName)}`, { method: 'DELETE' });
       await fetchDashboard();
     };
 
@@ -674,43 +932,87 @@ createApp({
     const toggleIgnore = async (projName, vulnId) => {
       const fd = new FormData();
       fd.append('vuln_id', vulnId);
-      const res = await apiFetch(`/sca/api/projects/${projName}/ignore`, { method: 'POST', body: fd });
+      const res = await apiFetch(`/sca/api/projects/${encodeURIComponent(projName)}/ignore`, { method: 'POST', body: fd });
       const updated = await res.json();
-      selectedProject.value = updated;
+      if (selectedProject.value?.project === projName) selectedProject.value = updated;
       await fetchDashboard();
     };
 
-    const totalDependencies = computed(() => projects.value.reduce((a, b) => a + (b.total_dependencies || 0), 0));
-    const globalCounts = computed(() => {
-      const c = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, IGNORED: 0 };
-      projects.value.forEach(p => {
-        Object.keys(c).forEach(k => c[k] += (p.counts?.[k] || 0));
-      });
-      return c;
-    });
-    const totalVulns = computed(() => Object.values(globalCounts.value).reduce((a, b) => a + b, 0));
-    const globalScore = computed(() => {
-      if (!projects.value.length) return 100;
-      return Math.round(projects.value.reduce((a, b) => a + b.security_score, 0) / projects.value.length);
-    });
-    const globalGrade = computed(() => {
-      const s = globalScore.value;
-      return s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 65 ? 'C' : s >= 50 ? 'D' : 'F';
-    });
+    const restoreIgnoredGlobally = async (vulnId) => {
+      const fd = new FormData();
+      fd.append('vuln_id', vulnId);
+      await apiFetch('/sca/api/ignored-vulnerabilities/restore', { method: 'POST', body: fd });
+      await fetchDashboard();
+    };
 
-    const filteredProjects = computed(() => {
-      const q = projectSearch.value.toLowerCase();
-      return projects.value.filter(p => p.project.toLowerCase().includes(q) || p.ecosystem.toLowerCase().includes(q));
-    });
+    const totalDependencies = computed(() => overview.value.summary?.total_dependencies || 0);
+    const globalCounts = computed(() => ({
+      CRITICAL: overview.value.summary?.counts?.CRITICAL || 0,
+      HIGH: overview.value.summary?.counts?.HIGH || 0,
+      MEDIUM: overview.value.summary?.counts?.MEDIUM || 0,
+      LOW: overview.value.summary?.counts?.LOW || 0,
+      IGNORED: overview.value.summary?.ignored_advisories || 0
+    }));
+    const totalVulns = computed(() => overview.value.summary?.unique_active_vulnerabilities || 0);
+    const globalScore = computed(() => overview.value.summary?.security_score ?? 100);
+    const globalGrade = computed(() => overview.value.summary?.grade || 'A');
+    const filteredProjects = computed(() => projects.value);
+    const inventoryPageCount = computed(() => Math.max(1, Math.ceil(inventoryTotal.value / inventoryPageSize)));
+    const inventoryStart = computed(() => (inventoryPage.value - 1) * inventoryPageSize);
+    const inventoryEnd = computed(() => Math.min(inventoryStart.value + projects.value.length, inventoryTotal.value));
+    const vulnerabilityPageCount = computed(() => Math.max(1, Math.ceil(vulnerabilityInventoryTotal.value / vulnerabilityPageSize)));
+    const vulnerabilityInventoryStart = computed(() => (vulnerabilityPage.value - 1) * vulnerabilityPageSize);
+    const vulnerabilityInventoryEnd = computed(() => Math.min(vulnerabilityInventoryStart.value + vulnerabilityInventory.value.length, vulnerabilityInventoryTotal.value));
+    const changeInventoryPage = (page) => {
+      inventoryPage.value = Math.min(inventoryPageCount.value, Math.max(1, page));
+      fetchInventory();
+      window.scrollTo(0, 0);
+    };
+    const changeVulnerabilityPage = (page) => {
+      vulnerabilityPage.value = Math.min(vulnerabilityPageCount.value, Math.max(1, page));
+      fetchVulnerabilityInventory();
+      window.scrollTo(0, 0);
+    };
+    const agingWidth = (key) => {
+      const buckets = intelligence.value.aging?.buckets || {};
+      const maximum = Math.max(1, ...Object.values(buckets).map(value => Number(value) || 0));
+      return Math.round(((Number(buckets[key]) || 0) / maximum) * 100);
+    };
+
+    const vulnerabilityKey = (v) => JSON.stringify([
+      String(v.ecosystem ?? '').toLowerCase(),
+      String(v.osv_id ?? v.id ?? '').toLowerCase(),
+      String(v.package ?? '').toLowerCase(),
+      String(v.installed_version ?? '').toLowerCase()
+    ]);
 
     const filteredVulns = computed(() => {
       if (!selectedProject.value) return [];
-      return selectedProject.value.vulnerabilities.filter(v => {
-        const matchSev = vulnSeverityFilter.value === 'ALL' || v.severity === vulnSeverityFilter.value;
-        const q = vulnSearch.value.toLowerCase();
-        const matchQ = v.package.toLowerCase().includes(q) || v.id.toLowerCase().includes(q);
+      const vulnerabilities = Array.isArray(selectedProject.value.vulnerabilities)
+        ? selectedProject.value.vulnerabilities
+        : [];
+      const q = vulnSearch.value.trim().toLowerCase();
+      return vulnerabilities.filter(v => {
+        const matchSev = vulnSeverityFilter.value === 'ALL' || String(v.severity ?? '').toUpperCase() === vulnSeverityFilter.value;
+        const searchableValues = [
+          v.package, v.id, v.osv_id, v.summary, v.details, v.ecosystem,
+          v.installed_version, v.fixed_version, ...(Array.isArray(v.aliases) ? v.aliases : []),
+          ...(Array.isArray(v.references) ? v.references : [])
+        ];
+        const matchQ = !q || searchableValues.some(value => String(value ?? '').toLowerCase().includes(q));
         return matchSev && matchQ;
       });
+    });
+
+    const projectSeverityCounts = computed(() => {
+      const vulnerabilities = Array.isArray(selectedProject.value?.vulnerabilities)
+        ? selectedProject.value.vulnerabilities
+        : [];
+      return vulnerabilities.reduce((counts, vuln) => {
+        const severity = String(vuln.severity ?? '').toUpperCase();
+        if (Object.prototype.hasOwnProperty.call(counts, severity)) counts[severity] += 1;
+        return counts;
+      }, { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 });
     });
 
     const renderCharts = () => {
@@ -722,42 +1024,34 @@ createApp({
         charts.sev = new Chart(ctxSev, {
           type: 'doughnut',
           data: {
-            labels: ['Crítica', 'Alta', 'Media', 'Baja', 'Ignorada'],
-            datasets: [{ data: [c.CRITICAL, c.HIGH, c.MEDIUM, c.LOW, c.IGNORED], backgroundColor: ['#e11d48', '#ea580c', '#d97706', '#2563eb', '#6b7280'], borderWidth: 0 }]
+            labels: ['Crítica', 'Alta', 'Media', 'Baja'],
+            datasets: [{ data: [c.CRITICAL, c.HIGH, c.MEDIUM, c.LOW], backgroundColor: ['#e11d48', '#ea580c', '#d97706', '#2563eb'], borderWidth: 0 }]
           },
           options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
         });
       }
 
-      const ctxTop = document.getElementById('topProjectsChart');
-      if (ctxTop) {
-        // const top5 = [...projects.value].sort((a, b) => (b.counts.CRITICAL*10 + b.counts.HIGH) - (a.counts.CRITICAL*10 + a.counts.HIGH)).slice(0, 5);
-		    const top5 = [...projects.value].sort((a, b) => (a.security_score - b.security_score)).slice(0, 5);
-        charts.top = new Chart(ctxTop, {
-          type: 'bar',
+      const ctxQuickWins = document.getElementById('quickWinsChart');
+      if (ctxQuickWins) {
+        const quickWins = overview.value.summary?.quick_wins || {};
+        charts.quickWins = new Chart(ctxQuickWins, {
+          type: 'doughnut',
           data: {
-            labels: top5.map(p => p.project),
-            datasets: [
-              { label: 'Crítica', data: top5.map(p => p.counts.CRITICAL), backgroundColor: '#e11d48' },
-              { label: 'Alta', data: top5.map(p => p.counts.HIGH), backgroundColor: '#ea580c' },
-              { label: 'Media', data: top5.map(p => p.counts.MEDIUM), backgroundColor: '#d97706' },
-              { label: 'Baja', data: top5.map(p => p.counts.LOW), backgroundColor: '#2563eb' },
-			        { label: 'Ignorada', data: top5.map(p => p.counts.IGNORED), backgroundColor: '#6b7280' }
-            ]
+            labels: ['Versión corregida declarada', 'Sin versión corregida declarada'],
+            datasets: [{ data: [quickWins.fixed_version_declared || 0, quickWins.fix_not_declared || 0], backgroundColor: ['#10b981', '#64748b'], borderWidth: 0 }]
           },
-          options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } } }
         });
       }
 
       const ctxEco = document.getElementById('ecosystemChart');
       if (ctxEco) {
-        const ecoMap = {};
-        projects.value.forEach(p => { ecoMap[p.ecosystem] = (ecoMap[p.ecosystem] || 0) + 1; });
+        const distribution = overview.value.ecosystem_distribution || [];
         charts.eco = new Chart(ctxEco, {
           type: 'bar',
           data: {
-            labels: Object.keys(ecoMap),
-            datasets: [{ label: 'Proyectos', data: Object.values(ecoMap), backgroundColor: '#6366f1' }]
+            labels: distribution.map(item => item.ecosystem),
+            datasets: [{ label: 'Proyectos', data: distribution.map(item => item.projects), backgroundColor: '#6366f1' }]
           },
           options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
         });
@@ -784,15 +1078,20 @@ createApp({
                   });
             }),
             datasets: [
-              { label: 'Crítica', data: hist.map(h => h.CRITICAL), borderColor: '#e11d48', tension: 0.3 },
-              { label: 'Alta', data: hist.map(h => h.HIGH), borderColor: '#ea580c', tension: 0.3 },
-              { label: 'Media', data: hist.map(h => h.MEDIUM), borderColor: '#d97706', tension: 0.3 },
-              { label: 'Baja', data: hist.map(h => h.LOW), borderColor: '#2563eb', tension: 0.3 }
+              { label: 'Score medio', data: hist.map(h => h.security_score), borderColor: '#10b981', backgroundColor: '#10b98120', fill: true, tension: 0.3, yAxisID: 'score' },
+              { label: 'Crítica', data: hist.map(h => h.CRITICAL), borderColor: '#e11d48', tension: 0.3, yAxisID: 'count' },
+              { label: 'Alta', data: hist.map(h => h.HIGH), borderColor: '#ea580c', tension: 0.3, yAxisID: 'count' },
+              { label: 'Media', data: hist.map(h => h.MEDIUM), borderColor: '#d97706', tension: 0.3, yAxisID: 'count' },
+              { label: 'Baja', data: hist.map(h => h.LOW), borderColor: '#2563eb', tension: 0.3, yAxisID: 'count' }
             ]
           },
           options: {
             responsive: true,
             maintainAspectRatio: false,
+            scales: {
+              count: { type: 'linear', position: 'left', beginAtZero: true },
+              score: { type: 'linear', position: 'right', min: 0, max: 100, grid: { drawOnChartArea: false } }
+            },
             plugins: {
               legend: { position: 'bottom', labels: { boxWidth: 10 } }
             }
@@ -801,9 +1100,137 @@ createApp({
       }
     };
 
-    const openProject = (p) => { selectedProject.value = p; };
+    const syncRouteFromHash = async () => {
+      if (!apiToken.value) {
+        showAuthModal.value = true;
+        return;
+      }
+      const requestId = ++routeLoadId;
+      const route = (window.location.hash || '#/dashboard').slice(1);
+      const [path, query = ''] = route.split('?');
+      const projectMatch = path.match(/^\/projects\/(.+)$/);
+      expandedVuln.value = null;
+
+      if (projectMatch) {
+        const params = new URLSearchParams(query);
+        const requestedPreviousView = params.get('from');
+        previousView.value = ['dashboard', 'intelligence', 'inventory', 'vulnerabilities'].includes(requestedPreviousView)
+          ? requestedPreviousView
+          : 'dashboard';
+        const requestedReturnRoute = params.get('return') || '';
+        const fallbackReturnRoute = previousView.value === 'vulnerabilities' && previousRoute.value.startsWith('#/vulnerabilities')
+          ? previousRoute.value
+          : '#/' + previousView.value;
+        previousRoute.value = /^#\/(dashboard|intelligence|inventory|vulnerabilities|ignored)(?:[?#]|$)/.test(requestedReturnRoute)
+          ? requestedReturnRoute
+          : fallbackReturnRoute;
+        currentView.value = 'details';
+        selectedProject.value = null;
+        await fetchDashboard();
+        if (requestId !== routeLoadId) return;
+        if (apiToken.value) {
+          try {
+            const projectDetails = await apiFetch(`/sca/api/projects/${encodeURIComponent(decodeURIComponent(projectMatch[1]))}`);
+            const detailData = await projectDetails.json();
+            if (requestId !== routeLoadId) return;
+            if (!projectDetails.ok) throw new Error(detailData.detail || 'No se pudo cargar el proyecto');
+            selectedProject.value = detailData;
+          } catch (error) {
+            if (requestId !== routeLoadId) return;
+            if (showAuthModal.value) return;
+            console.error('No se pudo abrir el proyecto:', error);
+            selectedProject.value = null;
+            alert(error.message || 'No se pudo abrir el proyecto');
+            window.location.hash = `#/${previousView.value}`;
+            return;
+          }
+        }
+      } else {
+        const routeView = path.replace(/^\//, '');
+        const params = new URLSearchParams(query);
+        currentView.value = routeView === 'ignored'
+          ? 'vulnerabilities'
+          : ['dashboard', 'intelligence', 'inventory', 'vulnerabilities'].includes(routeView)
+            ? routeView
+            : 'dashboard';
+        if (currentView.value === 'vulnerabilities') {
+          const requestedStatus = routeView === 'ignored' ? 'ignored' : params.get('status');
+          vulnerabilityStatusFilter.value = ['active', 'ignored'].includes(requestedStatus) ? requestedStatus : 'all';
+          vulnerabilityFixFilter.value = ['available', 'not_declared'].includes(params.get('fix')) ? params.get('fix') : 'all';
+          vulnerabilitySeverityFilter.value = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(params.get('severity')) ? params.get('severity') : '';
+          vulnerabilityEcosystemFilter.value = params.get('ecosystem') || '';
+        }
+        selectedProject.value = null;
+        await fetchDashboard();
+      }
+
+      if (requestId !== routeLoadId) return;
+      await nextTick();
+      window.scrollTo(0, 0);
+    };
+
+    const navigateView = (view) => {
+      const route = `#/${view}`;
+      if (window.location.hash === route) syncRouteFromHash();
+      else window.location.hash = route;
+    };
+    const openDashboard = () => navigateView('dashboard');
+    const openVulnerabilityInventory = (status = 'all', fixStatus = 'all', severity = '') => {
+      vulnerabilitySearch.value = '';
+      vulnerabilityEcosystemFilter.value = '';
+      vulnerabilityPage.value = 1;
+      vulnerabilityStatusFilter.value = ['active', 'ignored'].includes(status) ? status : 'all';
+      vulnerabilityFixFilter.value = ['available', 'not_declared'].includes(fixStatus) ? fixStatus : 'all';
+      vulnerabilitySeverityFilter.value = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(severity) ? severity : '';
+      const params = new URLSearchParams();
+      if (vulnerabilityStatusFilter.value !== 'all') params.set('status', vulnerabilityStatusFilter.value);
+      if (vulnerabilityFixFilter.value !== 'all') params.set('fix', vulnerabilityFixFilter.value);
+      if (vulnerabilitySeverityFilter.value) params.set('severity', vulnerabilitySeverityFilter.value);
+      const query = params.toString();
+      const route = '#/vulnerabilities' + (query ? '?' + query : '');
+      if (window.location.hash === route) syncRouteFromHash();
+      else window.location.hash = route;
+    };
+    const syncVulnerabilityFiltersToRoute = () => {
+      if (currentView.value !== 'vulnerabilities') return;
+      const params = new URLSearchParams();
+      if (vulnerabilityStatusFilter.value !== 'all') params.set('status', vulnerabilityStatusFilter.value);
+      if (vulnerabilityFixFilter.value !== 'all') params.set('fix', vulnerabilityFixFilter.value);
+      if (vulnerabilitySeverityFilter.value) params.set('severity', vulnerabilitySeverityFilter.value);
+      if (vulnerabilityEcosystemFilter.value) params.set('ecosystem', vulnerabilityEcosystemFilter.value);
+      const query = params.toString();
+      const route = '#/vulnerabilities' + (query ? '?' + query : '');
+      if (window.location.hash !== route) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search + route);
+      }
+    };
+    const openIgnoredSection = () => openVulnerabilityInventory('ignored');
+    const goBackToPreviousView = () => {
+      const route = previousRoute.value || '#/' + (previousView.value === 'details' ? 'dashboard' : previousView.value);
+      if (window.location.hash === route) syncRouteFromHash();
+      else window.location.hash = route;
+    };
+    const openProject = (projectSummary) => {
+      const project = projectSummary?.project;
+      if (!project) return;
+      if (currentView.value !== 'details') previousView.value = currentView.value;
+      const from = ['dashboard', 'intelligence', 'inventory', 'vulnerabilities'].includes(previousView.value) ? previousView.value : 'dashboard';
+      previousRoute.value = window.location.hash || '#/' + from;
+      const route = `#/projects/${encodeURIComponent(project)}?from=${encodeURIComponent(from)}`;
+      if (window.location.hash === route) syncRouteFromHash();
+      else window.location.hash = route;
+    };
     const toggleExpand = (id) => { expandedVuln.value = expandedVuln.value === id ? null : id; };
     const formatDate = (iso) => iso ? new Date(iso).toLocaleString() : 'Pendiente';
+
+    const safeExternalUrl = (value) => {
+      try {
+        const url = new URL(value);
+        return ['https:', 'http:'].includes(url.protocol) ? url.href : '#';
+      } catch (_) {
+        return '#';
+      }
+    };
 
     const gradeBadgeClass = (g) => ({
       'A': 'bg-emerald-500/15 text-emerald-500',
@@ -831,17 +1258,45 @@ createApp({
     const exportCSV = (p) => {
       const rows = [['Paquete', 'Version_Actual', 'Version_Segura', 'CVE_ID', 'Severidad', 'CVSS', 'Ignorado']];
       p.vulnerabilities.forEach(v => rows.push([v.package, v.installed_version, v.fixed_version, v.id, v.severity, v.cvss_score, v.ignored]));
-      const csv = rows.map(r => r.join(',')).join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
+      const csvCell = (value) => {
+        let text = String(value ?? '');
+        if (/^[\t\r ]*[=+\-@]/.test(text)) text = `'${text}`;
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+      const csv = rows.map(row => row.map(csvCell).join(',')).join('\r\n');
+      const blob = new Blob(['\ufeff', csv], { type: 'text/csv;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `${p.project}_vulnerabilities.csv`;
       a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
     };
 
-    watch(selectedProject, async (val) => {
-      if (!val) { vulnSeverityFilter.value = 'ALL'; await nextTick(); renderCharts(); window.scrollTo(0, 0); }
+    watch(() => selectedProject.value?.project, async (project, previousProject) => {
+      if (project !== previousProject) {
+        vulnSearch.value = '';
+        vulnSeverityFilter.value = 'ALL';
+        expandedVuln.value = null;
+      }
+      if (!project) { await nextTick(); if (currentView.value === 'dashboard' || currentView.value === 'inventory') renderCharts(); window.scrollTo(0, 0); }
       else { await nextTick(); window.scrollTo(0, 0); }
+    });
+
+    watch([projectSearch, projectEcosystemFilter, projectSeverityFilter], () => {
+      inventoryPage.value = 1;
+      if (currentView.value !== 'inventory') return;
+      clearTimeout(inventorySearchTimer);
+      inventorySearchTimer = setTimeout(fetchInventory, 250);
+    });
+
+    watch([vulnerabilitySearch, vulnerabilitySeverityFilter, vulnerabilityStatusFilter, vulnerabilityFixFilter, vulnerabilityEcosystemFilter], () => {
+      vulnerabilityPage.value = 1;
+      if (currentView.value !== 'vulnerabilities') return;
+      clearTimeout(vulnerabilitySearchTimer);
+      vulnerabilitySearchTimer = setTimeout(() => {
+        syncVulnerabilityFiltersToRoute();
+        fetchVulnerabilityInventory();
+      }, 250);
     });
 
     onMounted(() => {
@@ -862,16 +1317,22 @@ createApp({
       setAbsoluteMeta('og:image', ogImageUrl);
       setAbsoluteMeta('twitter:image', ogImageUrl);
       window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
-      fetchDashboard();
+      window.addEventListener('hashchange', syncRouteFromHash);
+      if (!window.location.hash) window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/dashboard`);
+      syncRouteFromHash();
 	  fetchVersion();
     });
 
     return {
-      projects, settings, selectedProject, scanning, projectSearch, vulnSearch, vulnSeverityFilter, expandedVuln,
+      projects, currentView, previousView, overview, intelligence, settings, selectedProject, scanning, projectSearch, projectEcosystemFilter, projectSeverityFilter, inventoryEcosystems, inventoryTotal, inventoryPage, inventoryPageCount, inventoryStart, inventoryEnd, agingBucketList, vulnSearch, vulnSeverityFilter, expandedVuln,
+      vulnerabilityInventory, vulnerabilityInventoryTotal, vulnerabilityPage, vulnerabilityPageCount, vulnerabilityInventoryStart, vulnerabilityInventoryEnd, vulnerabilityEcosystems, vulnerabilitySearch, vulnerabilitySeverityFilter, vulnerabilityStatusFilter, vulnerabilityFixFilter, vulnerabilityEcosystemFilter,
       showUploadModal, showAboutModal, uploadFile, uploadProjectName, themeMode, setTheme,
-      totalDependencies, globalCounts, totalVulns, globalScore, globalGrade, filteredProjects, filteredVulns,
-      scanAll, rescanProject, confirmDelete, onFileChange, submitUpload, toggleIgnore,
-      openProject, toggleExpand, formatDate, gradeBadgeClass, severityBadge, exportJSON, exportCSV, appVersion,
+      totalDependencies, globalCounts, totalVulns, globalScore, globalGrade, filteredProjects, filteredVulns, projectSeverityCounts,
+      agingWidth,
+      vulnerabilityKey,
+      fetchInventory, changeInventoryPage, changeVulnerabilityPage, navigateView, goBackToPreviousView,
+      scanAll, rescanProject, confirmDelete, onFileChange, submitUpload, toggleIgnore, restoreIgnoredGlobally,
+      openDashboard, openIgnoredSection, openVulnerabilityInventory, openProject, toggleExpand, formatDate, safeExternalUrl, gradeBadgeClass, severityBadge, exportJSON, exportCSV, appVersion,
 	  saveToken, tempApiToken, showAuthModal, logout, apiToken
     };
   }
