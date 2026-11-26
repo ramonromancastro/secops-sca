@@ -72,12 +72,15 @@ This file contains only parameters intended for administrator customization. The
 
 The backend creates and maintains this file. It is separate from user configuration and should not be edited as part of routine setup. It contains:
 
-*   API and upload tokens, generated on first deployment.
 *   `last_global_scan` and `scan_history`, updated by scans.
 *   `ignored_vulnerabilities_by_project`, updated by the dashboard's ignore actions.
 *   `vulnerability_lifecycle`, which tracks first observation and subsequent resolution observations for MTTR and aging.
 
-On upgrade, the backend migrates these system-managed values out of an older combined `settings.json` without changing the existing tokens or losing scan history and project ignores. The state file is created with owner-only permissions by deployment.
+On upgrade, the backend migrates system-managed values out of an older combined `settings.json` without losing scan history and project ignores. The state file is created with owner-only permissions by deployment.
+
+### Tokens (`config/tokens.json`)
+
+The backend generates the API and upload tokens on first start and stores them separately from user configuration and runtime state. On upgrade, existing tokens are migrated from older `settings.json` or `system_state.json` files without changing them. The token file is excluded from Git and uses owner-only permissions on the deployed Linux server.
 
 ### Scan coverage and limits
 
@@ -107,7 +110,7 @@ The UI uses authenticated aggregate endpoints for executive and intelligence vie
 ## 🛡️ Authentication & Usage
 
 Upon first accessing the dashboard, you will be prompted to enter your **API Bearer Token**.
-The automatically generated tokens are stored in ```/opt/secops-sca/config/system_state.json```.
+The automatically generated tokens are stored in ```/opt/secops-sca/config/tokens.json```.
 
 **Uploading Manifests**: Click the "+ Subir Manifiesto" button on the UI, or send a POST request to ```/api/upload``` via your CI/CD pipelines using the ```upload_token```.
 

@@ -1148,11 +1148,16 @@ createApp({
       } else {
         const routeView = path.replace(/^\//, '');
         const params = new URLSearchParams(query);
-        currentView.value = routeView === 'ignored'
+        const nextView = routeView === 'ignored'
           ? 'vulnerabilities'
           : ['dashboard', 'intelligence', 'inventory', 'vulnerabilities'].includes(routeView)
             ? routeView
             : 'dashboard';
+        if (nextView !== currentView.value) {
+          inventoryPage.value = 1;
+          vulnerabilityPage.value = 1;
+        }
+        currentView.value = nextView;
         if (currentView.value === 'vulnerabilities') {
           const requestedStatus = routeView === 'ignored' ? 'ignored' : params.get('status');
           vulnerabilityStatusFilter.value = ['active', 'ignored'].includes(requestedStatus) ? requestedStatus : 'all';

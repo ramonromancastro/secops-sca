@@ -341,9 +341,7 @@ EOF
 {
   "last_global_scan": null,
   "ignored_vulnerabilities_by_project": {},
-  "scan_history": [],
-  "api_token": "$(openssl rand -base64 16)",
-  "upload_token": "$(openssl rand -base64 16)"
+  "scan_history": []
 }
 EOF
     )
@@ -360,6 +358,9 @@ fi
 
 if [[ -f "$APP_DIR/config/system_state.json" ]]; then
     chmod 600 "$APP_DIR/config/system_state.json"
+fi
+if [[ -f "$APP_DIR/config/tokens.json" ]]; then
+    chmod 600 "$APP_DIR/config/tokens.json"
 fi
 
 # ------------------------------------------------------------------------------
