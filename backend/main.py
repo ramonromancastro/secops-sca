@@ -13,6 +13,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+from packaging.version import InvalidVersion, parse as parse_version
 
 import httpx
 from cvss import (
