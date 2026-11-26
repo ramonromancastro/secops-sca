@@ -46,6 +46,7 @@ MANIFESTS_DIR = BASE_DIR / "manifests"
 RESULTS_DIR = BASE_DIR / "results"
 CONFIG_FILE = BASE_DIR / "config" / "settings.json"
 SYSTEM_STATE_FILE = BASE_DIR / "config" / "system_state.json"
+TOKEN_FILE = BASE_DIR / "config" / "tokens.json"
 
 DEFAULT_SETTINGS = {
     "cron_schedule": "0 */6 * * *",
@@ -54,14 +55,13 @@ DEFAULT_SETTINGS = {
     "scan_batch_size": 10,
 }
 SYSTEM_STATE_KEYS = {
-    "api_token",
-    "upload_token",
     "last_global_scan",
     "ignored_vulnerabilities_by_project",
     "ignored_vulnerabilities",
     "scan_history",
     "vulnerability_lifecycle",
 }
+TOKEN_KEYS = {"api_token", "upload_token"}
 DEFAULT_SYSTEM_STATE = {
     "last_global_scan": None,
     "ignored_vulnerabilities_by_project": {},
@@ -184,8 +184,6 @@ def _atomic_write_bytes(path: Path, content: bytes) -> None:
 def _default_system_state() -> dict:
     return {
         **DEFAULT_SYSTEM_STATE,
-        "api_token": secrets.token_hex(32),
-        "upload_token": secrets.token_hex(32),
     }
 
 
@@ -203,13 +201,14 @@ def _read_json_object(path: Path) -> dict:
 
 
 def _load_stores_unlocked() -> tuple[dict, dict]:
-    """Load both stores and migrate system-managed keys from legacy settings.json."""
+    """Load stores and migrate legacy settings/state values into their dedicated files."""
     legacy_config = _read_json_object(CONFIG_FILE)
     saved_state = _read_json_object(SYSTEM_STATE_FILE)
+    saved_tokens = _read_json_object(TOKEN_FILE)
 
     settings_values = {
         key: value for key, value in legacy_config.items()
-        if key not in SYSTEM_STATE_KEYS
+        if key not in SYSTEM_STATE_KEYS and key not in TOKEN_KEYS
     }
     settings = {**DEFAULT_SETTINGS, **settings_values}
     state_values = {
@@ -220,13 +219,25 @@ def _load_stores_unlocked() -> tuple[dict, dict]:
     state_values.update(saved_state)
     state = {**_default_system_state(), **state_values}
 
+    # Prefer the dedicated token file, then preserve tokens from older locations.
+    tokens = {
+        key: value
+        for source in (legacy_config, saved_state)
+        for key, value in source.items()
+        if key in TOKEN_KEYS
+    }
+    tokens.update(saved_tokens)
+
     if not isinstance(settings.get("relative_url_root"), str):
         settings["relative_url_root"] = DEFAULT_SETTINGS["relative_url_root"]
     if not isinstance(settings.get("cron_schedule"), str):
         settings["cron_schedule"] = DEFAULT_SETTINGS["cron_schedule"]
     for token_name in ("api_token", "upload_token"):
-        if not isinstance(state.get(token_name), str) or not state[token_name]:
-            state[token_name] = secrets.token_hex(32)
+        if not isinstance(tokens.get(token_name), str) or not tokens[token_name]:
+            tokens[token_name] = secrets.token_hex(32)
+
+    for token_name in TOKEN_KEYS:
+        state.pop(token_name, None)
 
     ignored_by_project = state.get("ignored_vulnerabilities_by_project", {})
     if not isinstance(ignored_by_project, dict):
@@ -288,6 +299,12 @@ def _load_stores_unlocked() -> tuple[dict, dict]:
     if "last_global_scan" not in state:
         state["last_global_scan"] = None
 
+    # Write tokens before removing migrated copies from settings/state so an
+    # interrupted migration cannot lose the existing credentials.
+    if not TOKEN_FILE.exists() or tokens != saved_tokens:
+        _atomic_write_json(TOKEN_FILE, tokens)
+    if os.name == "posix":
+        os.chmod(TOKEN_FILE, 0o600)
     if not SYSTEM_STATE_FILE.exists() or state != saved_state:
         _atomic_write_json(SYSTEM_STATE_FILE, state)
     if not CONFIG_FILE.exists() or settings != legacy_config:
@@ -305,6 +322,12 @@ def load_system_state() -> dict:
     with CONFIG_STATE_LOCK:
         _, state = _load_stores_unlocked()
         return state
+
+
+def load_tokens() -> dict:
+    with CONFIG_STATE_LOCK:
+        _load_stores_unlocked()
+        return _read_json_object(TOKEN_FILE)
 
 
 def mutate_system_state(mutator) -> dict:
@@ -335,7 +358,7 @@ def verify_token(
     credentials: HTTPAuthorizationCredentials = Security(security_scheme),
 ):
     del request
-    api_token = load_system_state().get("api_token")
+    api_token = load_tokens().get("api_token")
     if not api_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -356,10 +379,10 @@ def verify_any_token(
     credentials: HTTPAuthorizationCredentials = Security(security_scheme),
 ):
     del request
-    state = load_system_state()
+    tokens = load_tokens()
     provided_token = credentials.credentials if credentials else ""
-    if _credential_matches(provided_token, state.get("api_token")) or _credential_matches(
-        provided_token, state.get("upload_token")
+    if _credential_matches(provided_token, tokens.get("api_token")) or _credential_matches(
+        provided_token, tokens.get("upload_token")
     ):
         return provided_token
     raise HTTPException(
