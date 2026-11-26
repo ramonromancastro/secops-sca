@@ -4,7 +4,7 @@
 # ==============================================================================
 set -euo pipefail
 
-SCRIPT_VERSION="1.4.2"
+SCRIPT_VERSION="1.4.6"
 GITHUB_REPO="ramonromancastro/secops-sca"
 
 # Color setup (ANSI escape codes)
@@ -229,10 +229,6 @@ fi
 # ------------------------------------------------------------------------------
 # OS Detection & Dependency Installation
 # ------------------------------------------------------------------------------
-if ! id "$APP_USER" &>/dev/null; then
-    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
-    useradd --system --no-create-home --shell /usr/sbin/nologin "$APP_USER" --group "$APP_GROUP" 2>/dev/null || true
-fi
 
 source /etc/os-release
 echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Operating system detected: ${C_GREEN}$PRETTY_NAME${C_NC}"
@@ -288,6 +284,61 @@ fi
 echo -e "${C_GREEN}    -> OK: Valid binary detected: $PYTHON_BIN (v$PY_VER)${C_NC}"
 
 # ------------------------------------------------------------------------------
+# Stop Backend Service Before Installation / Upgrade
+# ------------------------------------------------------------------------------
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking backend service status..."
+if systemctl is-active --quiet "$BACKEND_SERVICE"; then
+    echo -e "${C_YELLOW}    -> Backend service is running. Stopping it before deployment...${C_NC}"
+    systemctl stop "$BACKEND_SERVICE"
+    echo -e "${C_GREEN}    -> Backend service stopped successfully.${C_NC}"
+else
+    echo -e "${C_CYAN}    -> Backend service is not running. Nothing to stop.${C_NC}"
+fi
+
+# ------------------------------------------------------------------------------
+# Dedicated System User
+# ------------------------------------------------------------------------------
+
+if getent passwd "$APP_USER" >/dev/null; then
+    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Checking dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
+    CURRENT_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+    if [[ "$CURRENT_HOME" != "$APP_DIR" ]]; then
+        echo -e "${C_CYAN}    -> Home directory needs updating: $CURRENT_HOME -> $APP_DIR${C_NC}"
+        # Check for running processes
+        if PROCESS_LIST="$(pgrep -a -u "$APP_USER" '.*')"; then
+            echo -e "${C_RED}${C_BOLD}Error:${C_NC} User $APP_USER has running processes." >&2
+            echo -e "${C_YELLOW}Active processes:${C_NC}" >&2
+            printf '%s\n' "$PROCESS_LIST" >&2
+            echo -e "${C_YELLOW}Stop these processes before continuing.${C_NC}" >&2
+            exit 1
+        else
+            PGREP_RC=$?
+            # Exit code 1 means no processes found.
+            # Other exit codes indicate an actual pgrep error.
+            if (( PGREP_RC != 1 )); then
+                echo -e "${C_RED}${C_BOLD}Error:${C_NC} Could not check running processes for $APP_USER (pgrep exit code: $PGREP_RC)." >&2
+                exit 1
+            fi
+        fi
+        # No processes found: safe to update account information
+        echo -e "${C_CYAN}    -> No running processes found. Updating HOME directory...${C_NC}"
+        usermod --home "$APP_DIR" "$APP_USER"
+    else
+        echo -e "${C_GREEN}    -> User configuration already correct.${C_NC}"
+    fi
+else
+    echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating dedicated system user: ${C_GREEN}$APP_USER${C_NC}"
+    useradd \
+        --system \
+        --no-create-home \
+        --home-dir "$APP_DIR" \
+        --shell /usr/sbin/nologin \
+        --user-group \
+        "$APP_USER"
+fi
+
+# ------------------------------------------------------------------------------
 # Directory Creation
 # ------------------------------------------------------------------------------
 echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Creating structure in ${C_GREEN}$APP_DIR${C_NC}..."
@@ -316,9 +367,15 @@ if [[ -n "$DOWNLOAD_VERSION" ]]; then
     curl -L -s "$TAR_URL" -o "$TEMP_DIR/source.tar.gz"
 
     tar -xzf "$TEMP_DIR/source.tar.gz" -C "$TEMP_DIR" --exclude="source.tar.gz" --strip-components=1
-
+    rm -f -- "$TEMP_DIR/source.tar.gz"
+    
     echo -e "${C_CYAN}    -> Deploying files to $APP_DIR${C_NC}"
-    cp -r "$TEMP_DIR"/* "$APP_DIR/" 2>/dev/null || true
+
+    if ! cp -a -- "$TEMP_DIR/." "$APP_DIR/"; then
+        echo -e "${C_RED}${C_BOLD}Error:${C_NC} Failed to copy application files to $APP_DIR." >&2
+        rm -rf -- "$TEMP_DIR"
+        exit 1
+    fi
 
     rm -rf "$TEMP_DIR"
 fi
@@ -380,8 +437,7 @@ fi
 # ------------------------------------------------------------------------------
 if [[ -f "$APP_DIR/frontend/dist/index.html" ]]; then
     echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Adjusting API endpoints in index.html to use alias $ALIAS_PATH..."
-    sed -i "s|fetch('/api/|fetch('${ALIAS_PATH}/api/|g" "$APP_DIR/frontend/dist/index.html"
-    sed -i "s|fetch(\`/api/|fetch(\`${ALIAS_PATH}/api/|g" "$APP_DIR/frontend/dist/index.html"
+    sed -i "s|DEPLOY_ALIAS_PATH|${ALIAS_PATH}|g" "$APP_DIR/frontend/dist/index.html"
 fi
 
 # ------------------------------------------------------------------------------
@@ -402,7 +458,22 @@ if [[ "$OS_FAMILY" == "rhel" ]]; then
     if command -v getenforce &>/dev/null && [[ "$(getenforce)" != "Disabled" ]]; then
         echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Configuring SELinux contexts..."
         setsebool -P httpd_can_network_connect 1
-        semanage fcontext -a -t httpd_sys_content_t "$APP_DIR/frontend/dist(/.*)?" || true
+        FC_PATTERN="$APP_DIR/frontend/dist(/.*)?"
+
+        # Retrieve existing local SELinux file context rules
+        if ! LOCAL_FCONTEXTS="$(semanage fcontext -l -C)"; then
+            echo -e "${C_RED}${C_BOLD}Error:${C_NC} Could not retrieve SELinux file context rules." >&2
+            exit 1
+        fi
+        # Check whether the exact rule already exists
+        if printf '%s\n' "$LOCAL_FCONTEXTS" | awk -v pattern="$FC_PATTERN" \
+            '$1 == pattern { found=1 } END { exit !found }'; then
+            echo -e "${C_CYAN}    -> Updating existing SELinux file context rule...${C_NC}"
+            semanage fcontext -m -t httpd_sys_content_t "$FC_PATTERN"
+        else
+            echo -e "${C_CYAN}    -> Creating SELinux file context rule...${C_NC}"
+            semanage fcontext -a -t httpd_sys_content_t "$FC_PATTERN"
+        fi
         restorecon -Rv "$APP_DIR" > /dev/null
     fi
     if systemctl is-active --quiet firewalld; then
@@ -456,7 +527,8 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now ${BACKEND_SERVICE}
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Enabling and starting backend service..."
+systemctl enable --now "${BACKEND_SERVICE}"
 
 # ------------------------------------------------------------------------------
 # Apache HTTP Configuration
@@ -502,12 +574,32 @@ Alias ${ALIAS_PATH} "$APP_DIR/frontend/dist"
 EOF
 
 if [[ "$OS_FAMILY" == "debian" ]]; then
-    a2dissite secops-sca.conf 2>/dev/null || true
-    a2enconf secops-sca.conf
+    echo -e "${C_CYAN}    -> Enabling Apache configuration...${C_NC}"
+    a2enconf secops-sca
 fi
 
-systemctl enable --now "$WEB_SERVICE"
-systemctl restart "$WEB_SERVICE"
+# ------------------------------------------------------------------------------
+# Apache Configuration Validation and Service Activation
+# ------------------------------------------------------------------------------
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Validating Apache configuration..."
+
+if [[ "$OS_FAMILY" == "debian" ]]; then
+    apache2ctl configtest
+else
+    httpd -t
+fi
+
+echo -e "${C_BLUE}${C_BOLD}==>${C_NC} Enabling and starting Apache service..."
+systemctl enable "$WEB_SERVICE"
+
+if systemctl is-active --quiet "$WEB_SERVICE"; then
+    echo -e "${C_CYAN}    -> Apache is running. Reloading configuration...${C_NC}"
+    systemctl reload "$WEB_SERVICE"
+else
+    echo -e "${C_CYAN}    -> Apache is not running. Starting service...${C_NC}"
+    systemctl start "$WEB_SERVICE"
+fi
 
 # ------------------------------------------------------------------------------
 # Cron Job Configuration

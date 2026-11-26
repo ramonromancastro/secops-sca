@@ -487,13 +487,26 @@ def extract_severity(vuln: dict) -> tuple[str, float | None, str]:
     return "HIGH", None, vector
 
 
-def extract_fixed_version(vuln: dict, pkg_name: str) -> str:
+def extract_fixed_version(vuln: dict, pkg_name: str, current_version: str) -> str:
+    try:
+        curr_v = parse_version(current_version)
+    except InvalidVersion:
+        curr_v = None
+
     for affected in vuln.get("affected", []):
         if affected.get("package", {}).get("name", "").casefold() == pkg_name.casefold():
             for version_range in affected.get("ranges", []):
                 for event in version_range.get("events", []):
                     if "fixed" in event:
-                        return f">= {event['fixed']}"
+                        fixed_str = event["fixed"]
+                        try:
+                            # Comprueba que la versión corregida sea estrictamente mayor que la actual
+                            if curr_v is None or parse_version(fixed_str) > curr_v:
+                                return f">= {fixed_str}"
+                        except InvalidVersion:
+                            # Fallback si el advisory trae un hash de commit en lugar de versión semántica
+                            if fixed_str > current_version:
+                                return f">= {fixed_str}"
     return "Revisar advisory"
 
 
@@ -644,7 +657,7 @@ async def _collect_vulnerabilities(
                     "osv_id": osv_id,
                     "package": package["name"],
                     "installed_version": package["version"],
-                    "fixed_version": extract_fixed_version(data, package["name"]),
+                    "fixed_version": extract_fixed_version(data, package["name"], package["version"]),
                     "severity": severity,
                     "cvss_score": score,
                     "cvss_vector": vector or "N/A",
